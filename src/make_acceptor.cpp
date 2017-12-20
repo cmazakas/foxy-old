@@ -1,5 +1,4 @@
 #include "foxy/make_acceptor.hpp"
-#include "foxy/make_v4_endpoint.hpp"
 
 namespace io = boost::asio;
 namespace ip = boost::asio::ip;
@@ -13,6 +12,11 @@ namespace foxy
     ip::address_v4::bytes_type const bytes,
     unsigned short             const port) -> ip::tcp::acceptor
   {
-    return ip::tcp::acceptor{ios, make_v4_endpoint(bytes, port)};
+    return ip::tcp::acceptor{
+      ios,
+      ip::tcp::endpoint{
+        ip::make_address_v4(bytes),
+        port}
+    };
   }
 }

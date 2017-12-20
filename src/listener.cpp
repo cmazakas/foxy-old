@@ -12,11 +12,12 @@
 
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/write.hpp>
+#include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/message.hpp>
+#include <boost/beast/http/empty_body.hpp>
 #include <boost/beast/http/string_body.hpp>
-#include <boost/beast/core/flat_buffer.hpp>
 
-#include "foxy/make_v4_endpoint.hpp"
+#include <boost/beast/core/flat_buffer.hpp>
 
 namespace io    = boost::asio;
 namespace beast = boost::beast;
@@ -31,16 +32,18 @@ namespace foxy
     , public std::enable_shared_from_this<http_session>
   {
   private:
-    tcp::socket                      socket_;
-    io::strand                       strand_;
-    beast::flat_buffer               buffer_;
-    http::request<http::string_body> request_;
+    io::strand<
+      io::io_context::executor_type>       strand_;
+    tcp::socket                            socket_;
+    beast::flat_buffer                     buffer_;
+    http::request_parser<http::empty_body> header_parser_;
 
   public:
     http_session(tcp::socket&& socket)
       : socket_{std::move(socket)}
-      , strand_{socket_.get_io_service()}
+      , strand_{socket_.get_executor()}
       , buffer_{}
+      , header_parser_{}
     {}
 
 #include <boost/asio/yield.hpp>
@@ -49,18 +52,17 @@ namespace foxy
       std::size_t const         bytes_transferred = 0) -> void
     {
       reenter (*this) {
-        yield http::async_read(
-          socket_, buffer_, request_, strand_.wrap(
-          [self = shared_from_this()](auto const ec, auto const bytes_transferred) -> void
+        // we initially only want to read in the headers of the request
+        yield http::async_read_header(
+          socket_, buffer_, header_parser_,
+          [self = shared_from_this()](
+            boost::system::error_code const& ec,
+            std::size_t               const  num_bytes) -> void
           {
-            self->respond(ec, bytes_transferred);
-          }));
+            self->respond(ec, num_bytes);
+          });
 
-        // handle error case here
-        auto res = std::make_shared<http::response<http::string_body>>(200, BOOST_BEAST_VERSION_STRING);
-        res->body() = "rawr\n\n";
-        res->prepare_payload();
-        yield http::async_write(socket_, *res, );
+
       }
     }
   };
@@ -76,10 +78,10 @@ namespace foxy
     tcp::socket   socket_;
 
   public:
-    listener(io::io_service& ios, tcp::endpoint const endpoint)
+    listener(io::io_context& ioc, tcp::endpoint const endpoint)
       : endpoint_{endpoint}
-      , acceptor_{ios, endpoint}
-      , socket_{ios}
+      , acceptor_{ioc, endpoint}
+      , socket_{ioc}
     {}
 #include <boost/asio/yield.hpp>
     auto listen(boost::system::error_code ec = {}) -> void

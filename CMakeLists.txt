@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.9.3)
+cmake_minimum_required(VERSION 3.10)
 
 project(foxy)
 
@@ -6,14 +6,13 @@ find_path(CATCH_INCLUDE_DIR catch.hpp)
 add_library(Catch INTERFACE)
 target_include_directories(Catch INTERFACE ${CATCH_INCLUDE_DIR})
 
-find_package(Boost 1.65 REQUIRED system coroutine)
+find_package(Boost 1.66.0 REQUIRED COMPONENTS system coroutine)
 
 add_library(
-  foxy_core 
-  
+  foxy_core
+
   STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/make_acceptor.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/make_v4_endpoint.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/listener.cpp
 )
 
@@ -30,15 +29,14 @@ target_include_directories(
   PUBLIC
   ${Boost_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/beast/include
 )
 
 target_link_libraries(
   foxy_core
 
   PUBLIC
-  Boost::system
-  Boost::coroutine
+  ${Boost_SYSTEM_LIBRARY_DEBUG}
+  ${Boost_COROUTINE_LIBRARY_DEBUG}
 )
 
 add_executable(
@@ -46,6 +44,8 @@ add_executable(
 
   ${CMAKE_CURRENT_SOURCE_DIR}/test/main.cpp
 )
+
+
 
 target_link_libraries(foxy_tests foxy_core)
 
