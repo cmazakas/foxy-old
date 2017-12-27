@@ -11,22 +11,28 @@ find_package(Boost 1.66.0 REQUIRED COMPONENTS system coroutine)
 add_library(
   foxy_core
 
-  STATIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/make_acceptor.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/listener.cpp
+  INTERFACE
 )
 
 if (MSVC)
-  target_compile_definitions(foxy_core PUBLIC _WIN32_WINNT=0x0A00)
+  # Win10
+  target_compile_definitions(foxy_core INTERFACE _WIN32_WINNT=0x0A00)
 endif()
 
-target_compile_definitions(foxy_core PUBLIC BOOST_COROUTINES_NO_DEPRECATION_WARNING=1)
-target_compile_features(foxy_core PUBLIC cxx_std_14)
+target_compile_definitions(
+  foxy_core
+
+  INTERFACE
+  BOOST_COROUTINES_NO_DEPRECATION_WARNING=1
+  BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE=1
+)
+
+target_compile_features(foxy_core INTERFACE cxx_std_14)
 
 target_include_directories(
   foxy_core
 
-  PUBLIC
+  INTERFACE
   ${Boost_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
@@ -34,18 +40,20 @@ target_include_directories(
 target_link_libraries(
   foxy_core
 
-  PUBLIC
-  ${Boost_SYSTEM_LIBRARY_DEBUG}
-  ${Boost_COROUTINE_LIBRARY_DEBUG}
+  INTERFACE
+  debug ${Boost_SYSTEM_LIBRARY_DEBUG}
+  debug ${Boost_COROUTINE_LIBRARY_DEBUG}
+
+  optimized ${Boost_SYSTEM_LIBRARY_RELEASE}
+  optimized ${Boost_COROUTINE_LIBRARY_RELEASE}
 )
 
 add_executable(
   foxy_tests
 
   ${CMAKE_CURRENT_SOURCE_DIR}/test/main.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/server_test.cpp
 )
-
-
 
 target_link_libraries(foxy_tests foxy_core)
 
