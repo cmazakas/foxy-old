@@ -37,21 +37,21 @@ auto fail(error_code const& ec, char const* what) -> void
 template <
   typename AsyncStream,
   typename Handler,
+  typename DynamicBuffer,
   bool isRequest, typename Body, typename Allocator
 >
-struct read_op
+struct read_body_op
 {
 private:
 
   struct state : public asio::coroutine
   {
   public:
-    AsyncStream&       stream;
-    beast::flat_buffer buffer;
+    AsyncStream&   stream;
+    DynamicBuffer& buffer;
 
     http::parser<isRequest, Body, Allocator> parser;
 
-    explicit
     state(Handler& handler, AsyncStream& stream_)
       : stream{stream_}
     {}
@@ -61,7 +61,7 @@ private:
 
 public:
   template <typename DeducedHandler>
-  read_op(AsyncStream& stream, DeducedHandler&& handler)
+  read_body_op(AsyncStream& stream, DeducedHandler&& handler)
     : ptr_{std::forward<DeducedHandler>(handler), stream}
   {}
 
@@ -73,9 +73,9 @@ public:
 
 #include <boost/asio/yield.hpp>
 template <
-  typename AsyncStream, typename Handler,
+  typename AsyncStream, typename Handler, typename DynamicBuffer,
   bool isRequest, typename Body, typename Allocator>
-auto read_op<AsyncStream, Handler, isRequest, Body, Allocator>::operator()(
+auto read_body_op<AsyncStream, Handler, DynamicBuffer, isRequest, Body, Allocator>::operator()(
   error_code  const ec,
   std::size_t const bytes_transferred
 ) -> void
@@ -112,10 +112,11 @@ auto async_read_body(
 
   auto init = asio::async_completion<MessageHandler, handler_type>{handler};
 
-  read_op<
+  read_body_op<
     AsyncReadStream,
     BOOST_ASIO_HANDLER_TYPE(MessageHandler, handler_type),
-    isRequest, Body, Allocator>{}();
+    beast::flat_buffer,
+    isRequest, Body, Allocator>{stream, init.completion_handler}();
 
   return init.result.get();
 }
