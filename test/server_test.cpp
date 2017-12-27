@@ -1,5 +1,6 @@
 #include <string>
 #include <memory>
+#include <utility>
 #include <iostream>
 
 #include <boost/asio/strand.hpp>
@@ -14,6 +15,7 @@
 #include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
+#include <boost/beast/core/handler_ptr.hpp>
 
 #include <catch.hpp>
 
@@ -32,8 +34,62 @@ auto fail(error_code const& ec, char const* what) -> void
   std::cerr << what << " : " << ec.message() << "\n\n";
 }
 
-template <typename AsyncStream, typename Handler>
-struct read_op;
+template <
+  typename AsyncStream,
+  typename Handler,
+  bool isRequest, typename Body, typename Allocator
+>
+struct read_op
+{
+private:
+
+  struct state : public asio::coroutine
+  {
+  public:
+    AsyncStream&       stream;
+    beast::flat_buffer buffer;
+
+    http::parser<isRequest, Body, Allocator> parser;
+
+    explicit
+    state(Handler& handler, AsyncStream& stream_)
+      : stream{stream_}
+    {}
+  };
+
+  beast::handler_ptr<state, Handler> ptr_;
+
+public:
+  template <typename DeducedHandler>
+  read_op(AsyncStream& stream, DeducedHandler&& handler)
+    : ptr_{std::forward<DeducedHandler>(handler), stream}
+  {}
+
+
+  auto operator()(
+    error_code  const ec,
+    std::size_t const bytes_transferred) -> void;
+};
+
+#include <boost/asio/yield.hpp>
+template <
+  typename AsyncStream, typename Handler,
+  bool isRequest, typename Body, typename Allocator>
+auto read_op<AsyncStream, Handler, isRequest, Body, Allocator>::operator()(
+  error_code  const ec,
+  std::size_t const bytes_transferred
+) -> void
+{
+  auto& ptr = *ptr_;
+
+  reenter (ptr) {
+    yield http::async_read(
+      ptr.stream, ptr.buffer, ptr.parser, std::move(*this));
+
+
+  }
+}
+#include <boost/asio/unyield.hpp>
 
 template<
   typename AsyncReadStream,
@@ -52,12 +108,14 @@ auto async_read_body(
     error_code,
     http::message<isRequest, Body, http::basic_fields<Allocator>>&&))
 {
-  auto init = asio::async_completion<
-    MessageHandler,
-    void(error_code, http::message<isRequest, Body, http::basic_fields<Allocator>>&&)
-  >{handler};
+  using handler_type = void(error_code, http::message<isRequest, Body, http::basic_fields<Allocator>>&&);
 
-  read_op<AsyncReadStream>{}();
+  auto init = asio::async_completion<MessageHandler, handler_type>{handler};
+
+  read_op<
+    AsyncReadStream,
+    BOOST_ASIO_HANDLER_TYPE(MessageHandler, handler_type),
+    isRequest, Body, Allocator>{}();
 
   return init.result.get();
 }
