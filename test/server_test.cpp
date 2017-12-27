@@ -6,6 +6,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/coroutine.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/async_result.hpp>
 
 #include <boost/system/error_code.hpp>
 
@@ -31,6 +32,9 @@ auto fail(error_code const& ec, char const* what) -> void
   std::cerr << what << " : " << ec.message() << "\n\n";
 }
 
+template <typename AsyncStream, typename Handler>
+struct read_op;
+
 template<
   typename AsyncReadStream,
   typename DynamicBuffer,
@@ -48,7 +52,14 @@ auto async_read_body(
     error_code,
     http::message<isRequest, Body, http::basic_fields<Allocator>>&&))
 {
-  http::async_read(stream, buffer, parser, handler);
+  auto init = asio::async_completion<
+    MessageHandler,
+    void(error_code, http::message<isRequest, Body, http::basic_fields<Allocator>>&&)
+  >{handler};
+
+  read_op<AsyncReadStream>{}();
+
+  return init.result.get();
 }
 
 struct session
@@ -63,10 +74,10 @@ private:
   beast::flat_buffer          buffer_;
 
 public:
-  session(tcp::socket&& socket)
+  explicit
+  session(tcp::socket socket)
     : socket_{std::move(socket)}
     , strand_{socket_.get_executor()}
-    , buffer_{}
   {}
 
 #include <boost/asio/yield.hpp>
