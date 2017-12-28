@@ -1,6 +1,8 @@
+#include <limits>
 #include <string>
 #include <memory>
 #include <utility>
+#include <cstddef>
 #include <iostream>
 
 #include <boost/asio/strand.hpp>
@@ -18,6 +20,7 @@
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/handler_ptr.hpp>
+#include <boost/beast/http/string_body.hpp>
 
 #include <catch.hpp>
 
@@ -44,20 +47,28 @@ template <
   typename Body,
   typename Allocator
 >
-struct read_body_op
+struct read_body_op : public asio::coroutine
 {
-private:
+public:
+  using parser_type = http::parser<isRequest, Body, Allocator>;
 
-  struct state : public asio::coroutine
+private:
+  struct state
   {
   public:
-    AsyncStream&   stream;
-    DynamicBuffer& buffer;
+    AsyncStream&  stream;
+    DynamicBuffer buffer;
+    parser_type   parser;
 
-    http::parser<isRequest, Body, Allocator> parser;
-
-    state(AsyncStream& stream_)
+    state(
+      Handler&     handler,
+      AsyncStream& stream_,
+      parser_type  parser_)
       : stream{stream_}
+      , buffer{
+        std::numeric_limits<std::size_t>::max(),
+        asio::get_associated_allocator(handler)}
+      , parser{std::move(parser_)}
     {}
   };
 
@@ -73,13 +84,17 @@ public:
   read_body_op(read_body_op const& op) = default;
 
   template <typename DeducedHandler>
-  read_body_op(AsyncStream& stream)
-    : p_{stream}
+  read_body_op(
+    DeducedHandler&& handler,
+    AsyncStream&     stream,
+    parser_type      parser)
+    : p_{
+      std::forward<DeducedHandler>(handler), stream, std::move(parser)}
   {}
 
   auto operator()(
-    error_code  const ec,
-    std::size_t const bytes_transferred) -> void;
+    error_code  const ec = {},
+    std::size_t const bytes_transferred = 0) -> void;
 
   auto get_allocator(void) const noexcept -> allocator_type
   {
@@ -115,7 +130,8 @@ auto read_body_op<
     yield http::async_read(
       p.stream, p.buffer, p.parser, std::move(*this));
 
-    p_.invoke(ec, bytes_transferred);
+
+
   }
 }
 #include <boost/asio/unyield.hpp>
@@ -129,11 +145,11 @@ auto read_body_op<
  * to customize our initiator
  * */
 template <
-  typename AsyncReadStream,
-  typename DynamicBuffer,
   bool     isRequest,
   typename Body,
   typename Allocator,
+  typename AsyncReadStream,
+  typename DynamicBuffer,
   typename MessageHandler
 >
 auto async_read_body(
@@ -157,7 +173,11 @@ auto async_read_body(
   >;
 
   auto init = asio::async_completion<MessageHandler, handler_type>{handler};
-  read_body_op_t{stream}();
+  read_body_op_t{
+    handler,
+    stream,
+    std::move(parser)
+  }();
   return init.result.get();
 }
 
@@ -184,6 +204,15 @@ public:
     error_code const ec = {}) -> void
   {
     reenter(*this) {
+
+      yield async_read_body<true, http::string_body>(
+        socket_, buffer_,
+        http::parser<true, http::string_body>{},
+        [self = shared_from_this()]
+        (error_code ec, http::message<true, http::string_body>&& message) -> void
+        {
+
+        });
       // yield http::async_read_header(
       //   socket_, buffer_,
       // );
