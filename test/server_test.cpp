@@ -18,6 +18,7 @@
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/parser.hpp>
+#include <boost/beast/http/message.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/handler_ptr.hpp>
 #include <boost/beast/http/string_body.hpp>
@@ -131,7 +132,8 @@ auto read_body_op<
       p.stream, p.buffer, p.parser, std::move(*this));
 
 
-
+    auto parser = p.parser;
+    p_.invoke(error_code{}, std::move(parser).get());
   }
 }
 #include <boost/asio/unyield.hpp>
@@ -168,7 +170,7 @@ auto async_read_body(
   using read_body_op_t = read_body_op<
     AsyncReadStream,
     BOOST_ASIO_HANDLER_TYPE(MessageHandler, handler_type),
-    beast::flat_buffer,
+    DynamicBuffer,
     isRequest, Body, Allocator
   >;
 
@@ -209,7 +211,7 @@ public:
       //   socket_, buffer_,
       // );
 
-      yield async_read_body<true, http::string_body>(
+      yield async_read_body(
         socket_, buffer_,
         http::parser<true, http::string_body>{},
         [self = shared_from_this()]
@@ -240,8 +242,7 @@ public:
   {}
 
 #include <boost/asio/yield.hpp>
-  // note, we don't use strands here because we actually want
-  // our acceptance function to be reentrant by multiple threads
+  // we rely on the implicit strain
   auto run(error_code const ec = {}) -> void
   {
     reenter(*this) {
