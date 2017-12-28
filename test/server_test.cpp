@@ -8,6 +8,8 @@
 #include <boost/asio/coroutine.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/async_result.hpp>
+#include <boost/asio/associated_executor.hpp>
+#include <boost/asio/associated_allocator.hpp>
 
 #include <boost/system/error_code.hpp>
 
@@ -63,6 +65,10 @@ private:
 
 public:
 
+  using allocator_type = asio::associated_allocator_t<Handler>;
+  using executor_type  = asio::associated_executor_t<
+    Handler, decltype(std::declval<AsyncStream&>().get_executor())>;
+
   read_body_op(read_body_op&& op) = default;
   read_body_op(read_body_op const& op) = default;
 
@@ -74,6 +80,17 @@ public:
   auto operator()(
     error_code  const ec,
     std::size_t const bytes_transferred) -> void;
+
+  auto get_allocator(void) const noexcept -> allocator_type
+  {
+    return asio::get_associated_allocator(p_.handler());
+  }
+
+  auto get_executor(void) const noexcept -> executor_type
+  {
+    return asio::get_associated_executor(
+      p_.handler(), p_->stream.get_executor());
+  }
 };
 
 #include <boost/asio/yield.hpp>
@@ -92,13 +109,13 @@ auto read_body_op<
   std::size_t const bytes_transferred
 ) -> void
 {
-  auto& ptr = *ptr_;
+  auto& p = *p_;
 
   reenter (ptr) {
     yield http::async_read(
-      ptr.stream, ptr.buffer, ptr.parser, std::move(*this));
+      p.stream, p.buffer, p.parser, std::move(*this));
 
-
+    p_.invoke(ec, bytes_transferred);
   }
 }
 #include <boost/asio/unyield.hpp>
