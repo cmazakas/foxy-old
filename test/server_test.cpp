@@ -38,7 +38,9 @@ template <
   typename AsyncStream,
   typename Handler,
   typename DynamicBuffer,
-  bool isRequest, typename Body, typename Allocator
+  bool     isRequest,
+  typename Body,
+  typename Allocator
 >
 struct read_body_op
 {
@@ -52,19 +54,22 @@ private:
 
     http::parser<isRequest, Body, Allocator> parser;
 
-    state(Handler& handler, AsyncStream& stream_)
+    state(AsyncStream& stream_)
       : stream{stream_}
     {}
   };
 
-  beast::handler_ptr<state, Handler> ptr_;
+  beast::handler_ptr<state, Handler> p_;
 
 public:
-  template <typename DeducedHandler>
-  read_body_op(AsyncStream& stream, DeducedHandler&& handler)
-    : ptr_{std::forward<DeducedHandler>(handler), stream}
-  {}
 
+  read_body_op(read_body_op&& op) = default;
+  read_body_op(read_body_op const& op) = default;
+
+  template <typename DeducedHandler>
+  read_body_op(AsyncStream& stream)
+    : p_{stream}
+  {}
 
   auto operator()(
     error_code  const ec,
@@ -73,9 +78,16 @@ public:
 
 #include <boost/asio/yield.hpp>
 template <
-  typename AsyncStream, typename Handler, typename DynamicBuffer,
-  bool isRequest, typename Body, typename Allocator>
-auto read_body_op<AsyncStream, Handler, DynamicBuffer, isRequest, Body, Allocator>::operator()(
+  typename AsyncStream,
+  typename Handler,
+  typename DynamicBuffer,
+  bool     isRequest,
+  typename Body,
+  typename Allocator
+>
+auto read_body_op<
+  AsyncStream, Handler, DynamicBuffer, isRequest, Body, Allocator
+>::operator()(
   error_code  const ec,
   std::size_t const bytes_transferred
 ) -> void
@@ -91,18 +103,28 @@ auto read_body_op<AsyncStream, Handler, DynamicBuffer, isRequest, Body, Allocato
 }
 #include <boost/asio/unyield.hpp>
 
-template<
+/**
+ * async_read_body
+ *
+ * Initiates the asynchronous operation
+ *
+ * We opt-in to the boost::asio::async_result set of traits
+ * to customize our initiator
+ * */
+template <
   typename AsyncReadStream,
   typename DynamicBuffer,
-  bool isRequest, typename Body, typename Allocator,
+  bool     isRequest,
+  typename Body,
+  typename Allocator,
   typename MessageHandler
 >
 auto async_read_body(
   AsyncReadStream&                           stream,
   DynamicBuffer&                             buffer,
   http::parser<isRequest, Body, Allocator>&& parser,
-  MessageHandler&&                           handler)
--> BOOST_ASIO_INITFN_RESULT_TYPE(
+  MessageHandler&&                           handler
+) -> BOOST_ASIO_INITFN_RESULT_TYPE(
   MessageHandler,
   void(
     error_code,
@@ -110,14 +132,15 @@ auto async_read_body(
 {
   using handler_type = void(error_code, http::message<isRequest, Body, http::basic_fields<Allocator>>&&);
 
-  auto init = asio::async_completion<MessageHandler, handler_type>{handler};
-
-  read_body_op<
+  using read_body_op_t = read_body_op<
     AsyncReadStream,
     BOOST_ASIO_HANDLER_TYPE(MessageHandler, handler_type),
     beast::flat_buffer,
-    isRequest, Body, Allocator>{stream, init.completion_handler}();
+    isRequest, Body, Allocator
+  >;
 
+  auto init = asio::async_completion<MessageHandler, handler_type>{handler};
+  read_body_op_t{stream}();
   return init.result.get();
 }
 
