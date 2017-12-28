@@ -56,18 +56,17 @@ private:
   struct state
   {
   public:
-    AsyncStream&  stream;
-    DynamicBuffer buffer;
-    parser_type   parser;
+    AsyncStream&   stream;
+    DynamicBuffer& buffer;
+    parser_type    parser;
 
     state(
-      Handler&     handler,
-      AsyncStream& stream_,
-      parser_type  parser_)
+      Handler&       handler,
+      AsyncStream&   stream_,
+      DynamicBuffer& buffer_,
+      parser_type    parser_)
       : stream{stream_}
-      , buffer{
-        std::numeric_limits<std::size_t>::max(),
-        asio::get_associated_allocator(handler)}
+      , buffer{buffer_}
       , parser{std::move(parser_)}
     {}
   };
@@ -87,9 +86,10 @@ public:
   read_body_op(
     DeducedHandler&& handler,
     AsyncStream&     stream,
+    DynamicBuffer&   buffer,
     parser_type      parser)
     : p_{
-      std::forward<DeducedHandler>(handler), stream, std::move(parser)}
+      std::forward<DeducedHandler>(handler), stream, buffer, std::move(parser)}
   {}
 
   auto operator()(
@@ -126,7 +126,7 @@ auto read_body_op<
 {
   auto& p = *p_;
 
-  reenter (ptr) {
+  reenter (*this) {
     yield http::async_read(
       p.stream, p.buffer, p.parser, std::move(*this));
 
@@ -172,10 +172,11 @@ auto async_read_body(
     isRequest, Body, Allocator
   >;
 
-  auto init = asio::async_completion<MessageHandler, handler_type>{handler};
+  asio::async_completion<MessageHandler, handler_type> init{handler};
   read_body_op_t{
-    handler,
+    init.completion_handler,
     stream,
+    buffer,
     std::move(parser)
   }();
   return init.result.get();
@@ -204,6 +205,9 @@ public:
     error_code const ec = {}) -> void
   {
     reenter(*this) {
+      // yield http::async_read_header(
+      //   socket_, buffer_,
+      // );
 
       yield async_read_body<true, http::string_body>(
         socket_, buffer_,
@@ -213,9 +217,7 @@ public:
         {
 
         });
-      // yield http::async_read_header(
-      //   socket_, buffer_,
-      // );
+
     }
   }
 #include <boost/asio/unyield.hpp>
