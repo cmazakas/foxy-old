@@ -50,13 +50,15 @@ template <
   typename Handler,
   typename DynamicBuffer,
   bool     isRequest,
-  typename Body,
-  typename Allocator
+  typename OtherBody,
+  typename Allocator,
+  typename Body
 >
 struct read_body_op : public asio::coroutine
 {
 public:
   using parser_type = http::parser<isRequest, Body, Allocator>;
+  using other_parser_type = http::parser<isRequest, OtherBody, Allocator>;
 
 private:
   struct state
@@ -67,10 +69,10 @@ private:
     parser_type    parser;
 
     state(
-      Handler&       handler,
-      AsyncStream&   stream_,
-      DynamicBuffer& buffer_,
-      parser_type    parser_)
+      Handler&,
+      AsyncStream&        stream_,
+      DynamicBuffer&      buffer_,
+      other_parser_type&& parser_)
       : stream{stream_}
       , buffer{buffer_}
       , parser{std::move(parser_)}
@@ -93,10 +95,10 @@ public:
 
   template <typename DeducedHandler>
   read_body_op(
-    DeducedHandler&& handler,
-    AsyncStream&     stream,
-    DynamicBuffer&   buffer,
-    parser_type      parser)
+    DeducedHandler&&    handler,
+    AsyncStream&        stream,
+    DynamicBuffer&      buffer,
+    other_parser_type&& parser)
     : p_{
       std::forward<DeducedHandler>(handler),
       stream, buffer,
@@ -125,11 +127,12 @@ template <
   typename Handler,
   typename DynamicBuffer,
   bool     isRequest,
-  typename Body,
-  typename Allocator
+  typename OtherBody,
+  typename Allocator,
+  typename Body
 >
 auto read_body_op<
-  AsyncStream, Handler, DynamicBuffer, isRequest, Body, Allocator
+  AsyncStream, Handler, DynamicBuffer, isRequest, OtherBody, Allocator, Body
 >::operator()(
   error_code  const ec,
   std::size_t const bytes_transferred
@@ -145,7 +148,6 @@ auto read_body_op<
     std::cout << "Transferred " << bytes_transferred << " bytes\n\n";
     std::cout << p.parser.get() << '\n';
 
-    // auto message = p.parser.release();
     http::message<isRequest, Body, http::basic_fields<Allocator>> message(p_->parser.release());
     std::cout << "Body length: " << message.body().size() << '\n';
     std::cout << "Body is: " << message.body() << '\n';
@@ -164,18 +166,20 @@ auto read_body_op<
  * to customize our initiator
  * */
 template <
+  typename Body,
   typename AsyncReadStream,
   typename DynamicBuffer,
   bool     isRequest,
-  typename Body,
+  typename OtherBody,
   typename Allocator,
   typename MessageHandler
 >
 auto async_read_body(
-  AsyncReadStream&                         stream,
-  DynamicBuffer&                           buffer,
-  http::parser<isRequest, Body, Allocator> parser,
-  MessageHandler&&                         handler
+  AsyncReadStream&                     stream,
+  DynamicBuffer&                       buffer,
+  http::parser<
+    isRequest, OtherBody, Allocator>&& parser,
+  MessageHandler&&                     handler
 ) -> BOOST_ASIO_INITFN_RESULT_TYPE(
   MessageHandler,
   void(
@@ -188,7 +192,8 @@ auto async_read_body(
     AsyncReadStream,
     BOOST_ASIO_HANDLER_TYPE(MessageHandler, handler_type),
     DynamicBuffer,
-    isRequest, Body, Allocator
+    isRequest, OtherBody, Allocator,
+    Body
   >;
 
   asio::async_completion<MessageHandler, handler_type> init{handler};
@@ -242,10 +247,9 @@ public:
         ));
 
       yield {
-        auto parser = http::request_parser<http::string_body>{std::move(header_parser_)};
-        async_read_body(
+        async_read_body<http::string_body>(
           socket_, buffer_,
-          std::move(parser),
+          std::move(header_parser_),
           asio::bind_executor(
             strand_,
             [self = shared_from_this()]
