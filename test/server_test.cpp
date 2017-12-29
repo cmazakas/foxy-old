@@ -75,6 +75,9 @@ private:
       , buffer{buffer_}
       , parser{std::move(parser_)}
     {}
+
+    state(state&&) = default;
+    state(state const&) = default;
   };
 
   beast::handler_ptr<state, Handler> p_;
@@ -141,6 +144,7 @@ auto read_body_op<
     std::cout << p.parser.get() << '\n';
 
     auto message = p.parser.release();
+    std::cout << "Body length: " << message.body().size() << '\n';
     std::cout << "Body is: " << message.body() << '\n';
 
     p_.invoke(error_code{}, std::move(message));
