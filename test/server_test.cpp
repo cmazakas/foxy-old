@@ -64,16 +64,16 @@ private:
   public:
     AsyncStream&   stream;
     DynamicBuffer& buffer;
-    parser_type&   parser;
+    parser_type    parser;
 
     state(
       Handler&       handler,
       AsyncStream&   stream_,
       DynamicBuffer& buffer_,
-      parser_type&   parser_)
+      parser_type    parser_)
       : stream{stream_}
       , buffer{buffer_}
-      , parser{parser_}
+      , parser{std::move(parser_)}
     {}
 
     state(state&&) = default;
@@ -96,9 +96,11 @@ public:
     DeducedHandler&& handler,
     AsyncStream&     stream,
     DynamicBuffer&   buffer,
-    parser_type&     parser)
+    parser_type      parser)
     : p_{
-      std::forward<DeducedHandler>(handler), stream, buffer, parser}
+      std::forward<DeducedHandler>(handler),
+      stream, buffer,
+      std::move(parser)}
   {}
 
   auto operator()(
@@ -143,7 +145,8 @@ auto read_body_op<
     std::cout << "Transferred " << bytes_transferred << " bytes\n\n";
     std::cout << p.parser.get() << '\n';
 
-    auto message = p.parser.release();
+    // auto message = p.parser.release();
+    http::message<isRequest, Body, http::basic_fields<Allocator>> message(p_->parser.release());
     std::cout << "Body length: " << message.body().size() << '\n';
     std::cout << "Body is: " << message.body() << '\n';
 
@@ -169,10 +172,10 @@ template <
   typename MessageHandler
 >
 auto async_read_body(
-  AsyncReadStream&                          stream,
-  DynamicBuffer&                            buffer,
-  http::parser<isRequest, Body, Allocator>& parser,
-  MessageHandler&&                          handler
+  AsyncReadStream&                         stream,
+  DynamicBuffer&                           buffer,
+  http::parser<isRequest, Body, Allocator> parser,
+  MessageHandler&&                         handler
 ) -> BOOST_ASIO_INITFN_RESULT_TYPE(
   MessageHandler,
   void(
@@ -193,7 +196,7 @@ auto async_read_body(
     init.completion_handler,
     stream,
     buffer,
-    parser
+    std::move(parser)
   }();
   return init.result.get();
 }
@@ -210,8 +213,6 @@ private:
   beast::flat_buffer          buffer_;
 
   http::request_parser<http::empty_body> header_parser_;
-
-  std::shared_ptr<void> sp_;
 
 public:
   explicit
@@ -241,12 +242,10 @@ public:
         ));
 
       yield {
-        // auto parser = http::request_parser<http::string_body>{std::move(header_parser_)};
-        auto parser = std::make_shared<http::request_parser<http::string_body>>(std::move(header_parser_));
-        sp_ = parser;
+        auto parser = http::request_parser<http::string_body>{std::move(header_parser_)};
         async_read_body(
           socket_, buffer_,
-          *parser,
+          std::move(parser),
           asio::bind_executor(
             strand_,
             [self = shared_from_this()]
