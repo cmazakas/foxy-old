@@ -5,23 +5,28 @@
 #include <cstddef>
 #include <iostream>
 
+#include <boost/system/error_code.hpp>
+
 #include <boost/asio/strand.hpp>
-#include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/coroutine.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/async_result.hpp>
+#include <boost/asio/bind_executor.hpp>
 #include <boost/asio/associated_executor.hpp>
 #include <boost/asio/associated_allocator.hpp>
 
-#include <boost/system/error_code.hpp>
+#include <boost/asio/ip/tcp.hpp>
 
 #include <boost/beast/http/read.hpp>
+#include <boost/beast/http/write.hpp>
 #include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/message.hpp>
+#include <boost/beast/http/empty_body.hpp>
+#include <boost/beast/http/string_body.hpp>
+
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/handler_ptr.hpp>
-#include <boost/beast/http/string_body.hpp>
 
 #include <catch.hpp>
 
@@ -128,12 +133,17 @@ auto read_body_op<
   auto& p = *p_;
 
   reenter (*this) {
-    yield http::async_read(
-      p.stream, p.buffer, p.parser, std::move(*this));
+    yield http::async_read(p.stream, p.buffer, p.parser, std::move(*this));
 
+    if (ec) { fail(ec, "read body op"); }
 
-    auto parser = p.parser;
-    p_.invoke(error_code{}, std::move(parser).get());
+    std::cout << "Transferred " << bytes_transferred << " bytes\n\n";
+    std::cout << p.parser.get() << '\n';
+
+    auto message = p.parser.release();
+    std::cout << "Body is: " << message.body() << '\n';
+
+    p_.invoke(error_code{}, std::move(message));
   }
 }
 #include <boost/asio/unyield.hpp>
@@ -147,18 +157,18 @@ auto read_body_op<
  * to customize our initiator
  * */
 template <
+  typename AsyncReadStream,
+  typename DynamicBuffer,
   bool     isRequest,
   typename Body,
   typename Allocator,
-  typename AsyncReadStream,
-  typename DynamicBuffer,
   typename MessageHandler
 >
 auto async_read_body(
-  AsyncReadStream&                           stream,
-  DynamicBuffer&                             buffer,
-  http::parser<isRequest, Body, Allocator>&& parser,
-  MessageHandler&&                           handler
+  AsyncReadStream&                         stream,
+  DynamicBuffer&                           buffer,
+  http::parser<isRequest, Body, Allocator> parser,
+  MessageHandler&&                         handler
 ) -> BOOST_ASIO_INITFN_RESULT_TYPE(
   MessageHandler,
   void(
@@ -195,6 +205,8 @@ private:
   asio::strand<executor_type> strand_;
   beast::flat_buffer          buffer_;
 
+  http::request_parser<http::empty_body> header_parser_;
+
 public:
   explicit
   session(tcp::socket socket)
@@ -206,20 +218,47 @@ public:
   auto run(
     error_code const ec = {}) -> void
   {
+    std::cout << "Beginning session...\n\n";
+
     reenter(*this) {
-      // yield http::async_read_header(
-      //   socket_, buffer_,
-      // );
 
-      yield async_read_body(
-        socket_, buffer_,
-        http::parser<true, http::string_body>{},
-        [self = shared_from_this()]
-        (error_code ec, http::message<true, http::string_body>&& message) -> void
-        {
+      yield http::async_read_header(
+        socket_, buffer_, header_parser_,
+        asio::bind_executor(
+          strand_,
+          [self = shared_from_this()](
+            error_code  const& ec, std::size_t const bytes_transferred) -> void
+          {
+            std::cout << "Read in header at " << bytes_transferred << " bytes\n\n";
+            self->run(ec);
+          }
+        ));
 
-        });
+      yield {
+        auto parser = http::request_parser<http::string_body>{std::move(header_parser_)};
+        async_read_body(
+          socket_, buffer_,
+          std::move(parser),
+          asio::bind_executor(
+            strand_,
+            [self = shared_from_this()]
+            (error_code ec, http::message<true, http::string_body>&& message) -> void
+            {
+              std::cout << "Finished parsing request\n\n";
 
+              auto m = http::request<http::string_body>{std::move(message)};
+
+              auto res = http::response<http::string_body>{http::status::ok, 11};
+              res.set(http::field::content_type, "text/plain");
+              res.body() = "Received the following payload: \"" + m.body() + "\"";
+              res.prepare_payload();
+
+              http::write(self->socket_, res);
+
+              self->socket_.shutdown(tcp::socket::shutdown_both);
+            }
+          ));
+      }
     }
   }
 #include <boost/asio/unyield.hpp>
@@ -248,7 +287,10 @@ public:
     reenter(*this) {
       yield acceptor_.async_accept(
         socket_,
-        [self = shared_from_this()](auto const ec) { self->run(ec); });
+        [self = shared_from_this()](auto const ec) {
+          std::cout << "Completed acceptance\n\n";
+          self->run(ec);
+        });
 
       if (ec) { fail(ec, "accept"); return; }
 
@@ -271,6 +313,7 @@ TEST_CASE("Our HTTP listener")
       ioc, tcp::endpoint{ip::make_address_v4(addr), port}
     )->run();
 
+    std::cout << "Server is up and running\n\n";
     ioc.run();
   }
 }
