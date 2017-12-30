@@ -143,16 +143,11 @@ auto read_body_op<
   reenter (*this) {
     yield http::async_read(p.stream, p.buffer, p.parser, std::move(*this));
 
-    if (ec) { fail(ec, "read body op"); }
-
-    std::cout << "Transferred " << bytes_transferred << " bytes\n\n";
-    std::cout << p.parser.get() << '\n';
-
-    http::message<isRequest, Body, http::basic_fields<Allocator>> message(p_->parser.release());
-    std::cout << "Body length: " << message.body().size() << '\n';
-    std::cout << "Body is: " << message.body() << '\n';
-
-    p_.invoke(error_code{}, std::move(message));
+    if (ec) {
+      fail(ec, "read body op");
+    } else {
+      p_.invoke(error_code{}, p.parser.release());
+    }
   }
 }
 #include <boost/asio/unyield.hpp>
@@ -226,6 +221,12 @@ public:
     , strand_{socket_.get_executor()}
   {}
 
+  template <typename F>
+  auto make_stranded(F&& f)
+  {
+    return asio::bind_executor(strand_, std::forward<F>(f));
+  }
+
 #include <boost/asio/yield.hpp>
   auto run(
     error_code const ec = {}) -> void
@@ -236,8 +237,7 @@ public:
 
       yield http::async_read_header(
         socket_, buffer_, header_parser_,
-        asio::bind_executor(
-          strand_,
+        make_stranded(
           [self = shared_from_this()](
             error_code  const& ec, std::size_t const bytes_transferred) -> void
           {
@@ -246,32 +246,30 @@ public:
           }
         ));
 
-      yield {
-        async_read_body<http::string_body>(
-          socket_, buffer_,
-          std::move(header_parser_),
-          asio::bind_executor(
-            strand_,
-            [self = shared_from_this()]
-            (error_code ec, http::message<true, http::string_body>&& message) -> void
-            {
-              std::cout << "Finished parsing request\n\n";
+      yield async_read_body<http::string_body>(
+        socket_, buffer_,
+        std::move(header_parser_),
+        make_stranded(
+          [self = shared_from_this()]
+          (error_code ec, http::message<true, http::string_body>&& message) -> void
+          {
+            std::cout << "Finished parsing request\n\n";
 
-              if (ec) { fail(ec, "read body"); }
+            if (ec) { fail(ec, "read body"); }
 
-              auto m = http::request<http::string_body>{std::move(message)};
+            auto m = http::request<http::string_body>{std::move(message)};
 
-              auto res = http::response<http::string_body>{http::status::ok, 11};
-              res.set(http::field::content_type, "text/plain");
-              res.body() = "Received the following payload: \"" + m.body() + "\"";
-              res.prepare_payload();
+            auto res = http::response<http::string_body>{http::status::ok, m.version()};
+            res.set(http::field::content_type, "text/plain");
+            res.body() = "Received the following payload: \"" + m.body() + "\"";
+            res.prepare_payload();
 
-              http::write(self->socket_, res);
+            http::write(self->socket_, res);
 
-              self->socket_.shutdown(tcp::socket::shutdown_both);
-            }
-          ));
-      }
+            self->socket_.shutdown(tcp::socket::shutdown_both);
+          }
+        ));
+
     }
   }
 #include <boost/asio/unyield.hpp>
