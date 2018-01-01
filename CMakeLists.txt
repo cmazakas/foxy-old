@@ -13,6 +13,7 @@ add_library(
 
   STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/connection.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/listener.cpp
 )
 
 if (MSVC)

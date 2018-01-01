@@ -42,11 +42,11 @@ public:
   }
 
   auto run(
-    boost::system::error_code const ec,
-    std::size_t               const bytes_transferred,
+    boost::system::error_code const       ec = {},
+    std::size_t               const       bytes_transferred = 0,
     std::shared_ptr<
       boost::beast::http::request_parser<
-        boost::beast::http::empty_body>> header_parser) -> void;
+        boost::beast::http::empty_body>>  header_parser = nullptr) -> void;
 };
 
 } // foxy

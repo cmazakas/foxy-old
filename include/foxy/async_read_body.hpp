@@ -88,7 +88,7 @@ public:
   // necessary Asio hooks
 
   // allocator-awareness
-  using allocator_type = boost::asio::associated_allocator<Handler>;
+  using allocator_type = boost::asio::associated_allocator_t<Handler>;
 
   auto get_allocator(void) const noexcept -> allocator_type
   {
@@ -96,7 +96,7 @@ public:
   }
 
   // executor-awareness
-  using executor_type = boost::asio::associated_executor<
+  using executor_type = boost::asio::associated_executor_t<
     Handler,
     decltype(std::declval<AsyncReadStream&>().get_executor())
   >;
@@ -110,16 +110,18 @@ public:
   // main coroutine of async operation
 #include <boost/asio/yield.hpp>
   auto operator()(
-    boost::system::error_code const ec,
-    std::size_t               const bytes_transferred
+    boost::system::error_code const ec = {},
+    std::size_t               const bytes_transferred = 0
   ) -> void
   {
-    auto& p = p_;
+    auto& p = *p_;
     reenter(*this) {
       yield boost::beast::http::async_read(
         p.stream, p.buffer, p.parser, std::move(*this));
 
-      if (!ec) { p_.invoke({}, p.parser.release()); }
+      if (!ec) { p_.invoke(
+        boost::system::error_code{},
+        p.parser.release()); }
     }
   }
 #include <boost/asio/unyield.hpp>
@@ -159,9 +161,8 @@ auto async_read_body(
     is_async_read_stream_v<AsyncReadStream>,
     "Type traits not met");
 
-  using fields_type = boost::beast::http::basic_fields<Allocator>;
+  using fields_type  = boost::beast::http::basic_fields<Allocator>;
   using request_type = boost::beast::http::request<OutBody, fields_type>;
-
   using handler_type =
     void(boost::system::error_code ec, request_type&&);
 
@@ -182,7 +183,7 @@ auto async_read_body(
     stream,
     buffer,
     std::move(parser)
-  };
+  }();
 
   return init.result.get();
 }

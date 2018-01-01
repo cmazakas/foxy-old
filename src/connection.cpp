@@ -12,10 +12,11 @@ namespace http = boost::beast::http;
 
 #include <boost/asio/yield.hpp>
 auto foxy::connection::run(
-  error_code  const ec = {},
-  std::size_t const bytes_transferred = 0,
+  error_code  const       ec,
+  std::size_t const       bytes_transferred,
   std::shared_ptr<
-    http::request_parser<http::empty_body>> header_parser = nullptr) -> void
+    http::request_parser<
+      http::empty_body>>  header_parser) -> void
 {
   reenter (*this) {
     yield {
@@ -30,7 +31,7 @@ auto foxy::connection::run(
             self   = shared_from_this(),
             parser = std::move(header_parser)
           ](
-            error_code const ec,
+            error_code  const ec,
             std::size_t const bytes_transferred
           ) -> void
           {
