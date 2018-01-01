@@ -198,6 +198,7 @@ auto async_read_body(
     buffer,
     std::move(parser)
   }();
+  std::cout << "about to return\n";
   return init.result.get();
 }
 
@@ -246,7 +247,9 @@ public:
           }
         ));
 
-      yield async_read_body<http::string_body>(
+      yield {
+        std::cout << "Calling async read body\n";
+        async_read_body<http::string_body>(
         socket_, buffer_,
         std::move(header_parser_),
         make_stranded(
@@ -270,6 +273,8 @@ public:
           }
         ));
 
+        std::cout << "call done\n";
+      }
     }
   }
 #include <boost/asio/unyield.hpp>
