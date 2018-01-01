@@ -41,6 +41,9 @@ public:
     boost::beast::http::request_parser<OutBody, Allocator>;
 
 private:
+  struct state;
+  boost::beast::handler_ptr<state, Handler> p_;
+
   struct state
   {
     AsyncReadStream&   stream;
@@ -62,9 +65,6 @@ private:
     {
     }
   };
-
-
-  boost::beast::handler_ptr<state, Handler> p_;
 
 public:
   read_body_op(void)                = delete;
@@ -119,9 +119,9 @@ public:
       yield boost::beast::http::async_read(
         p.stream, p.buffer, p.parser, std::move(*this));
 
-      if (!ec) { p_.invoke(
-        boost::system::error_code{},
-        p.parser.release()); }
+      if (!ec) {
+        p_.invoke(boost::system::error_code{}, p.parser.release());
+      }
     }
   }
 #include <boost/asio/unyield.hpp>
@@ -134,7 +134,8 @@ public:
  * Asynchronously read a request body, taking a parser
  * containg the header of the request and then switching
  * the body type from InBody to OutBody and invoking
- * the supplied handler with (error_code, http::message)
+ * the supplied handler with:
+ * (error_code, http::request<OutBody, basic_fields<Allocator>>&&)
  */
 template <
   typename OutBody,
