@@ -177,7 +177,7 @@ auto async_read_body(
   >;
 
   boost::asio::async_completion<
-    MessageHandler, handler_type> init{std::forward<MessageHandler>(handler)};
+    MessageHandler, handler_type> init{handler};
 
   read_body_op_type{
     init.completion_handler,
