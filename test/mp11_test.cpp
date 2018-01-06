@@ -1,15 +1,19 @@
 #include <boost/beast/core/string.hpp>
-#include <boost/spirit/include/qi_int.hpp>
+
 #include <boost/fusion/container/list.hpp>
+#include <boost/fusion/algorithm/iteration/for_each.hpp>
+
+#include <boost/spirit/include/qi_int.hpp>
 #include <boost/spirit/include/qi_rule.hpp>
 #include <boost/spirit/include/qi_real.hpp>
 #include <boost/spirit/include/qi_parse.hpp>
-#include <boost/fusion/algorithm/iteration/for_each.hpp>
 
-
-#include <utility>
 #include <string>
+#include <utility>
+#include <cstddef>
 #include <iostream>
+
+#include "foxy/route.hpp"
 
 #include <catch.hpp>
 
@@ -27,7 +31,7 @@ auto make_list(Ts&&... ts)
 
 template <typename ...Rules>
 auto apply_rules(
-  beast::string_view sv,
+  beast::string_view     const  sv,
   fusion::list<Rules...> const& rule_list) -> void
 {
   fusion::for_each(

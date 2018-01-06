@@ -1,8 +1,9 @@
+#include "foxy/connection.hpp"
+
 #include <boost/beast/http/read.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/beast/http/string_body.hpp>
 
-#include "foxy/connection.hpp"
 #include "foxy/async_read_body.hpp"
 
 using boost::system::error_code;
@@ -12,8 +13,8 @@ namespace http = boost::beast::http;
 
 #include <boost/asio/yield.hpp>
 auto foxy::connection::run(
-  error_code  const       ec,
-  std::size_t const       bytes_transferred,
+  error_code  const ec,
+  std::size_t const bytes_transferred,
   std::shared_ptr<
     http::request_parser<
       http::empty_body>>  header_parser) -> void
