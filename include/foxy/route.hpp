@@ -13,6 +13,7 @@ template <
 >
 struct route
 {
+  using body_type = Body;
   using rule_type = boost::spirit::qi::rule<Iterator, A1, A2, A3>;
 
   rule_type rule;

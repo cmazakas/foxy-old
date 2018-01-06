@@ -1,9 +1,6 @@
 #ifndef FOXY_CONNECTION_HPP_
 #define FOXY_CONNECTION_HPP_
 
-#include <memory>
-#include <cstddef>
-
 #include <boost/asio/strand.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/coroutine.hpp>
@@ -15,6 +12,9 @@
 #include <boost/beast/http/empty_body.hpp>
 
 #include <boost/beast/core/flat_buffer.hpp>
+
+#include <memory>
+#include <cstddef>
 
 namespace foxy
 {

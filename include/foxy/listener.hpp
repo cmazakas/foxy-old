@@ -8,6 +8,7 @@
 #include <boost/system/error_code.hpp>
 
 #include <boost/fusion/container/list.hpp>
+#include <boost/fusion/algorithm/iteration/for_each.hpp>
 
 #include <memory>
 #include <utility>
