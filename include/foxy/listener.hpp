@@ -59,7 +59,7 @@ auto listener<RouteList>::run(boost::system::error_code const ec) -> void
   reenter (*this) {
     yield acceptor_.async_accept(
       socket_,
-      [self = shared_from_this()](boost::system::error_code const ec) -> void
+      [self = this->shared_from_this()](boost::system::error_code const ec) -> void
       {
         self->run(ec);
       });
