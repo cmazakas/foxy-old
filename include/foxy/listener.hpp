@@ -1,6 +1,9 @@
 #ifndef FOXY_LISTENER_HPP_
 #define FOXY_LISTENER_HPP_
 
+#include <memory>
+#include <utility>
+
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/coroutine.hpp>
 #include <boost/asio/io_context.hpp>
@@ -9,9 +12,6 @@
 
 #include <boost/fusion/container/list.hpp>
 #include <boost/fusion/algorithm/iteration/for_each.hpp>
-
-#include <memory>
-#include <utility>
 
 #include "foxy/connection.hpp"
 
@@ -22,9 +22,13 @@ struct listener
   : public boost::asio::coroutine
   , public std::enable_shared_from_this<listener<RouteList>>
 {
+public:
+  using acceptor_type = boost::asio::ip::tcp::acceptor;
+  using socket_type   = boost::asio::ip::tcp::socket;
+
 private:
-  boost::asio::ip::tcp::acceptor acceptor_;
-  boost::asio::ip::tcp::socket   socket_;
+  acceptor_type acceptor_;
+  socket_type   socket_;
 
   boost::fusion::list<RouteList> routes_;
 
@@ -32,8 +36,7 @@ public:
   listener(
     boost::asio::io_context&              ioc,
     boost::asio::ip::tcp::endpoint const& endpoint,
-
-    RouteList const  routes);
+    RouteList const routes);
 
   auto run(boost::system::error_code const ec = {}) -> void;
 };
@@ -42,8 +45,7 @@ template <typename RouteList>
 listener<RouteList>::listener(
   boost::asio::io_context&              ioc,
   boost::asio::ip::tcp::endpoint const& endpoint,
-  RouteList const  routes
-)
+  RouteList const routes)
 : acceptor_{ioc, endpoint}
 , socket_{ioc}
 , routes_{routes}

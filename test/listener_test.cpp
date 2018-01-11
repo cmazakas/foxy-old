@@ -37,8 +37,10 @@ TEST_CASE("Our listener type")
     auto const routes = foxy::make_routes(
       foxy::make_route<http::string_body>(int_rule, [](){}));
 
+    auto const endpoint = tcp::endpoint{ip::make_address_v4(addr), port};
+
     std::make_shared<foxy::listener<decltype(routes)>>(
-      ioc, tcp::endpoint{ip::make_address_v4(addr), port}, routes
+      ioc, endpoint, routes
     )->run();
 
     std::cout << "Server is up and running\n\n";

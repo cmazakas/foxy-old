@@ -34,7 +34,6 @@ private:
   buffer_type buffer_;
 
 public:
-  explicit
   connection(socket_type socket)
     : socket_{std::move(socket)}
     , strand_{socket_.get_executor()}
