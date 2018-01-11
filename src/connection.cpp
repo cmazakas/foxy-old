@@ -1,5 +1,7 @@
 #include "foxy/connection.hpp"
 
+#include <iostream>
+
 #include <boost/asio/bind_executor.hpp>
 
 #include <boost/beast/core/string.hpp>
@@ -29,16 +31,18 @@ auto foxy::connection::run(
 {
   reenter (*this) {
     yield {
-      auto header_parser =
+      auto tmp_parser =
         std::make_shared<http::request_parser<http::empty_body>>();
 
+      // note, moving `tmp_parser` into `parser` gives a segfault
+      // for some reason
       http::async_read_header(
-        socket_, buffer_, *header_parser,
+        socket_, buffer_, *tmp_parser,
         asio::bind_executor(
           strand_,
           [
             self   = shared_from_this(),
-            parser = header_parser
+            parser = tmp_parser
           ](
             error_code  const ec,
             std::size_t const bytes_transferred

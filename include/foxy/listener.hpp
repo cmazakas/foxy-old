@@ -30,7 +30,7 @@ private:
   acceptor_type acceptor_;
   socket_type   socket_;
 
-  boost::fusion::list<RouteList> routes_;
+  RouteList routes_;
 
 public:
   listener(

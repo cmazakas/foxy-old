@@ -1,3 +1,9 @@
+#include <string>
+#include <utility>
+#include <cstddef>
+#include <iostream>
+#include <type_traits>
+
 #include <boost/beast/core/string.hpp>
 #include <boost/beast/http/string_body.hpp>
 
@@ -9,14 +15,7 @@
 #include <boost/spirit/include/qi_real.hpp>
 #include <boost/spirit/include/qi_parse.hpp>
 
-#include <string>
-#include <utility>
-#include <cstddef>
-#include <iostream>
-#include <type_traits>
-
 #include "foxy/route.hpp"
-#include "foxy/make_route.hpp"
 
 #include <catch.hpp>
 

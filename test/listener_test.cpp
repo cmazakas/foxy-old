@@ -11,7 +11,7 @@
 #include <memory>
 
 #include "foxy/listener.hpp"
-#include "foxy/make_route.hpp"
+#include "foxy/route.hpp"
 
 #include <catch.hpp>
 
