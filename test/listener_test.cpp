@@ -34,7 +34,7 @@ TEST_CASE("Our listener type")
 
     auto int_rule = qi::rule<char const*>{qi::int_};
 
-    auto const routes = foxy::make_routes(
+    auto routes = foxy::make_routes(
       foxy::make_route<http::string_body>(int_rule, [](){}));
 
     auto const endpoint = tcp::endpoint{ip::make_address_v4(addr), port};

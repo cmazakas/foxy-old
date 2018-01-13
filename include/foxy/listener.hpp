@@ -7,11 +7,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/coroutine.hpp>
 #include <boost/asio/io_context.hpp>
-
 #include <boost/system/error_code.hpp>
-
-#include <boost/fusion/container/list.hpp>
-#include <boost/fusion/algorithm/iteration/for_each.hpp>
 
 #include "foxy/connection.hpp"
 
@@ -43,7 +39,7 @@ public:
 
 template <typename RouteList>
 listener<RouteList>::listener(
-  boost::asio::io_context&              ioc,
+  boost::asio::io_context& ioc,
   boost::asio::ip::tcp::endpoint const& endpoint,
   RouteList const routes)
 : acceptor_{ioc, endpoint}
@@ -64,7 +60,7 @@ auto listener<RouteList>::run(boost::system::error_code const ec) -> void
         self->run(ec);
       });
 
-    std::make_shared<connection>(std::move(socket_))->run();
+    std::make_shared<connection<RouteList>>(std::move(socket_))->run();
   }
 }
 #include <boost/asio/unyield.hpp>

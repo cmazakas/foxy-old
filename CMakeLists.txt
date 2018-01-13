@@ -11,29 +11,28 @@ find_package(Boost 1.66 REQUIRED COMPONENTS system coroutine)
 add_library(
   foxy_core
 
-  STATIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/connection.cpp
+  INTERFACE
 )
 
 if (MSVC)
   # Win10
-  target_compile_definitions(foxy_core PUBLIC _WIN32_WINNT=0x0A00)
+  target_compile_definitions(foxy_core INTERFACE _WIN32_WINNT=0x0A00)
 endif()
 
 target_compile_definitions(
   foxy_core
 
-  PUBLIC
+  INTERFACE
   BOOST_COROUTINES_NO_DEPRECATION_WARNING=1
   BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE=1
 )
 
-target_compile_features(foxy_core PUBLIC cxx_std_14)
+target_compile_features(foxy_core INTERFACE cxx_std_14)
 
 target_include_directories(
   foxy_core
 
-  PUBLIC
+  INTERFACE
   ${Boost_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
@@ -41,7 +40,7 @@ target_include_directories(
 target_link_libraries(
   foxy_core
 
-  PUBLIC
+  INTERFACE
   debug ${Boost_SYSTEM_LIBRARY_DEBUG}
   debug ${Boost_COROUTINE_LIBRARY_DEBUG}
 

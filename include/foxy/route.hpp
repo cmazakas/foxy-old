@@ -1,8 +1,10 @@
 #ifndef FOXY_ROUTE_HPP_
 #define FOXY_ROUTE_HPP_
 
-#include <boost/spirit/include/qi_rule.hpp>
 #include <utility>
+
+#include <boost/fusion/container/list.hpp>
+#include <boost/spirit/include/qi_rule.hpp>
 
 namespace foxy
 {
