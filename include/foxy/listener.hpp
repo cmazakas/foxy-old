@@ -26,13 +26,13 @@ private:
   acceptor_type acceptor_;
   socket_type   socket_;
 
-  RouteList routes_;
+  RouteList const& routes_;
 
 public:
   listener(
     boost::asio::io_context&              ioc,
     boost::asio::ip::tcp::endpoint const& endpoint,
-    RouteList const routes);
+    RouteList const& routes);
 
   auto run(boost::system::error_code const ec = {}) -> void;
 };
@@ -41,7 +41,7 @@ template <typename RouteList>
 listener<RouteList>::listener(
   boost::asio::io_context& ioc,
   boost::asio::ip::tcp::endpoint const& endpoint,
-  RouteList const routes)
+  RouteList const& routes)
 : acceptor_{ioc, endpoint}
 , socket_{ioc}
 , routes_{routes}
@@ -60,7 +60,7 @@ auto listener<RouteList>::run(boost::system::error_code const ec) -> void
         self->run(ec);
       });
 
-    std::make_shared<connection<RouteList>>(std::move(socket_))->run();
+    std::make_shared<connection<RouteList>>(std::move(socket_), routes_)->run();
   }
 }
 #include <boost/asio/unyield.hpp>

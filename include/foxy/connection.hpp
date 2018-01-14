@@ -1,6 +1,8 @@
 #ifndef FOXY_CONNECTION_HPP_
 #define FOXY_CONNECTION_HPP_
 
+#include <memory>
+#include <cstddef>
 #include <iostream>
 
 #include <boost/asio/strand.hpp>
@@ -22,12 +24,12 @@
 #include <boost/beast/core/string.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 
+#include <boost/fusion/container/list.hpp>
 #include <boost/fusion/algorithm/iteration/for_each.hpp>
 
-#include "foxy/async_read_body.hpp"
+#include <boost/spirit/include/qi_parse.hpp>
 
-#include <memory>
-#include <cstddef>
+#include "foxy/async_read_body.hpp"
 
 namespace foxy
 {
@@ -47,10 +49,13 @@ private:
   strand_type strand_;
   buffer_type buffer_;
 
+  RouteList const& routes_;
+
 public:
-  connection(socket_type socket)
+  connection(socket_type socket, RouteList const& routes)
     : socket_{std::move(socket)}
     , strand_{socket_.get_executor()}
+    , routes_{routes}
   {
   }
 
@@ -71,7 +76,11 @@ auto foxy::connection<RouteList>::run(
     boost::beast::http::request_parser<
       boost::beast::http::empty_body>>  header_parser) -> void
 {
-  namespace http = boost::beast::http;
+  namespace qi     = boost::spirit::qi;
+  namespace asio   = boost::asio;
+  namespace http   = boost::beast::http;
+  namespace fusion = boost::fusion;
+
   using boost::system::error_code;
 
   reenter (*this) {
@@ -97,28 +106,46 @@ auto foxy::connection<RouteList>::run(
           }));
     }
 
-    // default implementation for now
-    using body_type = http::empty_body;
 
-    yield foxy::async_read_body<body_type>(
-      socket_, buffer_, std::move(*header_parser),
-      asio::bind_executor(
-        strand_,
-        [self = shared_from_this()]
-        (error_code ec, http::request<body_type> request)
+    yield {
+      auto const partial_request = http::request<http::empty_body>{header_parser->get()};
+      auto const target = partial_request.target();
+
+      std::cout << target << '\n';
+
+      fusion::for_each(
+        routes_,
+        [=](auto const& route) -> void
         {
-          auto const target = request.target();
+          auto const& rule    = route.rule;
+          auto const& handler = route.handler;
 
-          auto res = http::response<http::string_body>{http::status::ok, 11};
-          res.body() =
-            "Received the following request-target: " +
-            std::string{target.begin(), target.end()};
+          qi::parse(target.begin(), target.end(), rule);
+        });
 
-          res.prepare_payload();
+      // default implementation for now
+      using body_type = http::empty_body;
 
-          http::write(self->socket_, res);
-          self->run(ec);
-        }));
+      foxy::async_read_body<body_type>(
+        socket_, buffer_, std::move(*header_parser),
+        asio::bind_executor(
+          strand_,
+          [self = shared_from_this()]
+          (error_code ec, http::request<body_type> request)
+          {
+            auto const target = request.target();
+
+            auto res = http::response<http::string_body>{http::status::ok, 11};
+            res.body() =
+              "Received the following request-target: " +
+              std::string{target.begin(), target.end()};
+
+            res.prepare_payload();
+
+            http::write(self->socket_, res);
+            self->run(ec);
+          }));
+    }
 
     socket_.shutdown(socket_type::shutdown_both);
   }
