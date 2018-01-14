@@ -4,6 +4,7 @@
 #include <memory>
 #include <cstddef>
 #include <iostream>
+#include <type_traits>
 
 #include <boost/asio/strand.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -57,6 +58,11 @@ public:
     , strand_{socket_.get_executor()}
     , routes_{routes}
   {
+  }
+
+  auto get_socket(void) & noexcept -> socket_type&
+  {
+    return socket_;
   }
 
   auto run(
@@ -113,38 +119,35 @@ auto foxy::connection<RouteList>::run(
 
       std::cout << target << '\n';
 
+      using element_type =
+        std::pointer_traits<
+          std::decay_t<decltype(header_parser)>
+        >::element_type;
+
+      auto self = this;
+
       fusion::for_each(
         routes_,
-        [=](auto const& route) -> void
+        [=, &header_parser](auto const& route) -> void
         {
           auto const& rule    = route.rule;
           auto const& handler = route.handler;
 
-          qi::parse(target.begin(), target.end(), rule);
+          if (qi::parse(target.begin(), target.end(), rule)) {
+            using route_type = std::decay_t<decltype(route)>;
+            using body_type  = typename route_type::body_type;
+
+            foxy::async_read_body<body_type>(
+              self->socket_, self->buffer_, std::move(*header_parser),
+              asio::bind_executor(
+                self->strand_,
+                [sp = self->shared_from_this(), &handler]
+                (error_code ec, http::request<body_type>&& req)
+                {
+                  handler(ec, std::move(req), std::move(sp));
+                }));
+          }
         });
-
-      // default implementation for now
-      using body_type = http::empty_body;
-
-      foxy::async_read_body<body_type>(
-        socket_, buffer_, std::move(*header_parser),
-        asio::bind_executor(
-          strand_,
-          [self = shared_from_this()]
-          (error_code ec, http::request<body_type> request)
-          {
-            auto const target = request.target();
-
-            auto res = http::response<http::string_body>{http::status::ok, 11};
-            res.body() =
-              "Received the following request-target: " +
-              std::string{target.begin(), target.end()};
-
-            res.prepare_payload();
-
-            http::write(self->socket_, res);
-            self->run(ec);
-          }));
     }
 
     socket_.shutdown(socket_type::shutdown_both);
