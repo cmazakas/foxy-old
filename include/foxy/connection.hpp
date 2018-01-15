@@ -101,7 +101,7 @@ auto foxy::connection<RouteList>::run(
         asio::bind_executor(
           strand_,
           [
-            self   = shared_from_this(),
+            self   = this->shared_from_this(),
             parser = std::move(tmp_parser)
           ](
             error_code  const ec,
