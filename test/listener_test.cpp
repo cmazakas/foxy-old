@@ -55,7 +55,7 @@ TEST_CASE("Our listener type")
     using sig_type  = typename rule_type::sig_type;
     // using synth_attribute_type = typename mpl::front<sig_type>::type;
 
-    static_assert(std::is_same_v<std::string, decltype(std::declval<sig_type>()())>, "Requirements not met");
+    static_assert(std::is_same<std::string, decltype(std::declval<sig_type>()())>::value, "Requirements not met");
 
     auto const route_handler =
       [](
