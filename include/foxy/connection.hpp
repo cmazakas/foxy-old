@@ -131,25 +131,27 @@ auto foxy::connection<RouteList>::run(
           auto const& rule    = route.rule;
           auto const& handler = route.handler;
 
-          using rule_type = std::decay_t<decltype(rule)>;
-          using sig_type  = typename rule_type::sig_type;
-          using synth_attribute_type = typename mpl::begin<sig_type>::type;
-
+          using rule_type  = std::decay_t<decltype(rule)>;
           using route_type = std::decay_t<decltype(route)>;
           using body_type  = typename route_type::body_type;
 
+          using sig_type = typename rule_type::sig_type;
+          using synth_attribute_type = typename mpl::begin<sig_type>::type;
+
           auto val = synth_attribute_type{};
 
-          if (qi::parse(target.begin(), target.end(), rule, val)) {
+          if (
+            qi::parse(target.begin(), target.end(), rule, val)
+          ) {
             foxy::async_read_body<body_type>(
               self->socket_, self->buffer_,
               std::move(*header_parser),
               asio::bind_executor(
                 self->strand_,
-                [sp = self->shared_from_this(), &handler]
+                [sp = self->shared_from_this(), &handler, &val]
                 (error_code ec, http::request<body_type>&& req)
                 {
-                  handler(ec, std::move(req), std::move(sp));
+                  handler(ec, std::move(req), std::move(sp), val);
                 }));
           }
         });
