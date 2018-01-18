@@ -49,7 +49,7 @@ TEST_CASE("Our listener type")
     auto const port = static_cast<unsigned short>(1337);
 
     auto const int_rule  = qi::rule<char const*, int()>{"/" >> qi::int_};
-    auto const name_rule = qi::rule<char const*, std::string()>{"/" >> +qi::char_};
+    auto const name_rule = qi::rule<char const*, std::string()>{"/" >> +qi::alpha};
 
     using rule_type = qi::rule<char const*, std::string()>;
     using sig_type  = typename rule_type::sig_type;
