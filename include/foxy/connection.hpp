@@ -136,9 +136,10 @@ auto foxy::connection<RouteList>::run(
           using body_type  = typename route_type::body_type;
 
           using sig_type = typename rule_type::sig_type;
-          using synth_attribute_type = typename mpl::begin<sig_type>::type;
+          // using synth_attribute_type = typename mpl::begin<sig_type>::type;
+          using synth_attribute_type = decltype(std::declval<sig_type>()());
 
-          auto val = synth_attribute_type{};
+          synth_attribute_type val;
 
           if (
             qi::parse(target.begin(), target.end(), rule, val)
@@ -148,7 +149,7 @@ auto foxy::connection<RouteList>::run(
               std::move(*header_parser),
               asio::bind_executor(
                 self->strand_,
-                [sp = self->shared_from_this(), &handler, &val]
+                [sp = self->shared_from_this(), &handler, val]
                 (error_code ec, http::request<body_type>&& req)
                 {
                   handler(ec, std::move(req), std::move(sp), val);

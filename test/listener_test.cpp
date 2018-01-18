@@ -19,6 +19,8 @@
 #include <boost/spirit/include/qi_sequence.hpp>
 #include <boost/spirit/include/qi_char_class.hpp>
 #include <boost/spirit/include/qi_kleene.hpp>
+#include <boost/spirit/include/qi_char_.hpp>
+#include <boost/spirit/include/qi_plus.hpp>
 
 #include <boost/mpl/front.hpp>
 
@@ -46,23 +48,21 @@ TEST_CASE("Our listener type")
     auto const addr = std::string{"127.0.0.1"};
     auto const port = static_cast<unsigned short>(1337);
 
-    auto const int_rule  = qi::rule<char const*>{"/" >> qi::int_};
-    auto const name_rule = qi::rule<char const*, std::string()>{"/" >> *qi::alpha};
+    auto const int_rule  = qi::rule<char const*, int()>{"/" >> qi::int_};
+    auto const name_rule = qi::rule<char const*, std::string()>{"/" >> +qi::char_};
 
-    using rule_type = decltype(name_rule);
-    using sig_type  = rule_type::sig_type;
-    using synth_attribute_type = mpl::front<sig_type>::type;
+    using rule_type = qi::rule<char const*, std::string()>;
+    using sig_type  = typename rule_type::sig_type;
+    // using synth_attribute_type = typename mpl::front<sig_type>::type;
 
-    synth_attribute_type s = "rawr";
-    static_assert(std::is_same_v<synth_attribute_type, std::string>, "Requirements not met");
-
+    static_assert(std::is_same_v<std::string, decltype(std::declval<sig_type>()())>, "Requirements not met");
 
     auto const route_handler =
       [](
         error_code const ec,
         http::request<http::string_body> request,
         auto connection,
-        qi::unused_type) -> void
+        int const num) -> void
       {
         auto const target = request.target();
 
