@@ -15,12 +15,9 @@
 #include <boost/system/error_code.hpp>
 
 #include <boost/beast/http/read.hpp>
-#include <boost/beast/http/write.hpp>
 #include <boost/beast/http/parser.hpp>
-#include <boost/beast/http/status.hpp>
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/empty_body.hpp>
-#include <boost/beast/http/string_body.hpp>
 
 #include <boost/beast/core/string.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
@@ -29,6 +26,8 @@
 #include <boost/fusion/algorithm/iteration/for_each.hpp>
 
 #include <boost/spirit/include/qi_parse.hpp>
+
+#include <boost/mpl/begin_end.hpp>
 
 #include "foxy/async_read_body.hpp"
 
@@ -83,6 +82,7 @@ auto foxy::connection<RouteList>::run(
       boost::beast::http::empty_body>>  header_parser) -> void
 {
   namespace qi     = boost::spirit::qi;
+  namespace mpl    = boost::mpl;
   namespace asio   = boost::asio;
   namespace http   = boost::beast::http;
   namespace fusion = boost::fusion;
@@ -112,17 +112,15 @@ auto foxy::connection<RouteList>::run(
           }));
     }
 
-
     yield {
-      auto const partial_request = http::request<http::empty_body>{header_parser->get()};
-      auto const target = partial_request.target();
+      auto const partial_request =
+        http::request<http::empty_body>{header_parser->get()};
 
-      std::cout << target << '\n';
+      auto const target = partial_request.target();
 
       using element_type =
         std::pointer_traits<
-          std::decay_t<decltype(header_parser)>
-        >::element_type;
+          std::decay_t<decltype(header_parser)>>::element_type;
 
       auto self = this;
 
@@ -133,12 +131,19 @@ auto foxy::connection<RouteList>::run(
           auto const& rule    = route.rule;
           auto const& handler = route.handler;
 
-          if (qi::parse(target.begin(), target.end(), rule)) {
-            using route_type = std::decay_t<decltype(route)>;
-            using body_type  = typename route_type::body_type;
+          using rule_type = std::decay_t<decltype(rule)>;
+          using sig_type  = typename rule_type::sig_type;
+          using synth_attribute_type = typename mpl::begin<sig_type>::type;
 
+          using route_type = std::decay_t<decltype(route)>;
+          using body_type  = typename route_type::body_type;
+
+          auto val = synth_attribute_type{};
+
+          if (qi::parse(target.begin(), target.end(), rule, val)) {
             foxy::async_read_body<body_type>(
-              self->socket_, self->buffer_, std::move(*header_parser),
+              self->socket_, self->buffer_,
+              std::move(*header_parser),
               asio::bind_executor(
                 self->strand_,
                 [sp = self->shared_from_this(), &handler]
