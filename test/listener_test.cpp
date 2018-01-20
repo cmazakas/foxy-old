@@ -1,9 +1,7 @@
 #include <string>
 #include <memory>
-#include <type_traits>
 
 #include <boost/asio/io_context.hpp>
-
 #include <boost/system/error_code.hpp>
 
 #include <boost/beast/http/write.hpp>
@@ -15,26 +13,23 @@
 #include <boost/spirit/include/qi_lit.hpp>
 #include <boost/spirit/include/qi_rule.hpp>
 #include <boost/spirit/include/qi_real.hpp>
+#include <boost/spirit/include/qi_plus.hpp>
 #include <boost/spirit/include/qi_parse.hpp>
+#include <boost/spirit/include/qi_char_.hpp>
+#include <boost/spirit/include/qi_kleene.hpp>
 #include <boost/spirit/include/qi_sequence.hpp>
 #include <boost/spirit/include/qi_char_class.hpp>
-#include <boost/spirit/include/qi_kleene.hpp>
-#include <boost/spirit/include/qi_char_.hpp>
-#include <boost/spirit/include/qi_plus.hpp>
 
-#include <boost/mpl/front.hpp>
-
-#include "foxy/listener.hpp"
 #include "foxy/route.hpp"
+#include "foxy/listener.hpp"
 
 #include <catch.hpp>
 
-namespace qi    = boost::spirit::qi;
-namespace beast = boost::beast;
-namespace http  = boost::beast::http;
-namespace asio  = boost::asio;
 namespace ip    = boost::asio::ip;
-namespace mpl   = boost::mpl;
+namespace qi    = boost::spirit::qi;
+namespace asio  = boost::asio;
+namespace http  = boost::beast::http;
+namespace beast = boost::beast;
 
 using tcp = asio::ip::tcp;
 using boost::system::error_code;
@@ -51,12 +46,15 @@ TEST_CASE("Our listener type")
     auto const int_rule  = qi::rule<char const*, int()>{"/" >> qi::int_};
     auto const name_rule = qi::rule<char const*, std::string()>{"/" >> +qi::alpha};
 
+<<<<<<< HEAD
     using rule_type = qi::rule<char const*, std::string()>;
     using sig_type  = typename rule_type::sig_type;
     // using synth_attribute_type = typename mpl::front<sig_type>::type;
 
     static_assert(std::is_same<std::string, decltype(std::declval<sig_type>()())>::value, "Requirements not met");
 
+=======
+>>>>>>> Refactored routing a bit
     auto const route_handler =
       [](
         error_code const ec,

@@ -1,10 +1,13 @@
 #ifndef FOXY_CONNECTION_HPP_
 #define FOXY_CONNECTION_HPP_
 
-#include <memory>
-#include <cstddef>
-#include <iostream>
-#include <type_traits>
+#include <memory>      // shared_ptr, make_shared, enable_shared_from_this
+#include <cstddef>     // size_t
+#include <utility>     // forward/move
+#include <iostream>    // cout debugging
+#include <type_traits> // remove_reference, decay
+
+#include <boost/callable_traits.hpp>
 
 #include <boost/asio/strand.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -27,8 +30,7 @@
 
 #include <boost/spirit/include/qi_parse.hpp>
 
-#include <boost/mpl/begin_end.hpp>
-
+#include "foxy/log.hpp"
 #include "foxy/async_read_body.hpp"
 
 namespace foxy
@@ -50,6 +52,12 @@ private:
   buffer_type buffer_;
 
   RouteList const& routes_;
+
+  template <typename F>
+  auto make_stranded(F&& f)
+  {
+    return asio::bind_executor(strand_, std::forward<F>(f));
+  }
 
 public:
   connection(socket_type socket, RouteList const& routes)
@@ -81,8 +89,8 @@ auto foxy::connection<RouteList>::run(
     boost::beast::http::request_parser<
       boost::beast::http::empty_body>>  header_parser) -> void
 {
+  namespace ct     = boost::callable_traits;
   namespace qi     = boost::spirit::qi;
-  namespace mpl    = boost::mpl;
   namespace asio   = boost::asio;
   namespace http   = boost::beast::http;
   namespace fusion = boost::fusion;
@@ -98,8 +106,7 @@ auto foxy::connection<RouteList>::run(
 
       http::async_read_header(
         socket_, buffer_, p,
-        asio::bind_executor(
-          strand_,
+        make_stranded(
           [
             self   = this->shared_from_this(),
             parser = std::move(tmp_parser)
@@ -108,6 +115,9 @@ auto foxy::connection<RouteList>::run(
             std::size_t const bytes_transferred
           ) -> void
           {
+            if (ec) {
+              return fail(ec, "header parsing");
+            }
             self->run(ec, bytes_transferred, std::move(parser));
           }));
     }
@@ -124,6 +134,8 @@ auto foxy::connection<RouteList>::run(
 
       auto self = this;
 
+      auto found_match = false;
+
       fusion::for_each(
         routes_,
         [=, &header_parser](auto const& route) -> void
@@ -131,24 +143,22 @@ auto foxy::connection<RouteList>::run(
           auto const& rule    = route.rule;
           auto const& handler = route.handler;
 
-          using rule_type  = std::decay_t<decltype(rule)>;
+          using rule_type  = std::remove_reference_t<decltype(rule)>;
           using route_type = std::decay_t<decltype(route)>;
           using body_type  = typename route_type::body_type;
 
           using sig_type = typename rule_type::sig_type;
-          // using synth_attribute_type = typename mpl::begin<sig_type>::type;
-          using synth_attribute_type = decltype(std::declval<sig_type>()());
+          using synth_attr_type = ct::return_type_t<sig_type>;
 
-          synth_attribute_type val;
+          auto val = synth_attr_type{};
 
           if (
-            qi::parse(target.begin(), target.end(), rule, val)
+           qi::parse(target.begin(), target.end(), rule, val)
           ) {
             foxy::async_read_body<body_type>(
               self->socket_, self->buffer_,
               std::move(*header_parser),
-              asio::bind_executor(
-                self->strand_,
+              self->make_stranded(
                 [sp = self->shared_from_this(), &handler, val]
                 (error_code ec, http::request<body_type>&& req)
                 {
