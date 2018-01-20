@@ -46,15 +46,6 @@ TEST_CASE("Our listener type")
     auto const int_rule  = qi::rule<char const*, int()>{"/" >> qi::int_};
     auto const name_rule = qi::rule<char const*, std::string()>{"/" >> +qi::alpha};
 
-<<<<<<< HEAD
-    using rule_type = qi::rule<char const*, std::string()>;
-    using sig_type  = typename rule_type::sig_type;
-    // using synth_attribute_type = typename mpl::front<sig_type>::type;
-
-    static_assert(std::is_same<std::string, decltype(std::declval<sig_type>()())>::value, "Requirements not met");
-
-=======
->>>>>>> Refactored routing a bit
     auto const route_handler =
       [](
         error_code const ec,
