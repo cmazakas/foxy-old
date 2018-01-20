@@ -132,14 +132,15 @@ auto foxy::connection<RouteList>::run(
         std::pointer_traits<
           std::decay_t<decltype(header_parser)>>::element_type;
 
-      auto self = this;
-
+      auto self        = this;
       auto found_match = false;
 
       fusion::for_each(
         routes_,
-        [=, &header_parser](auto const& route) -> void
+        [=, &header_parser, &found_match](auto const& route) -> void
         {
+          if (found_match) { return; }
+
           auto const& rule    = route.rule;
           auto const& handler = route.handler;
 
@@ -155,6 +156,8 @@ auto foxy::connection<RouteList>::run(
           if (
            qi::parse(target.begin(), target.end(), rule, val)
           ) {
+            found_match = true;
+
             foxy::async_read_body<body_type>(
               self->socket_, self->buffer_,
               std::move(*header_parser),
