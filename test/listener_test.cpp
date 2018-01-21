@@ -43,15 +43,14 @@ TEST_CASE("Our listener type")
     auto const addr = std::string{"127.0.0.1"};
     auto const port = static_cast<unsigned short>(1337);
 
-    auto const int_rule  = qi::rule<char const*, int()>{"/" >> qi::int_};
+    auto const int_rule  = qi::rule<char const*>{"/" >> qi::int_};
     auto const name_rule = qi::rule<char const*, std::string()>{"/" >> +qi::alpha};
 
     auto const route_handler =
       [](
         error_code const ec,
         http::request<http::string_body> request,
-        auto connection,
-        int const num) -> void
+        auto connection) -> void
       {
         auto const target = request.target();
 

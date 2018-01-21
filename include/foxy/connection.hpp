@@ -59,6 +59,139 @@ private:
     return asio::bind_executor(strand_, std::forward<F>(f));
   }
 
+  template <
+    typename SynthAttrType,
+    typename Route,
+    std::enable_if_t<
+      std::is_same<void, SynthAttrType>::value, bool> = false
+  >
+  auto parse_rule_and_read_body(
+    boost::beast::string_view const target,
+    Route const& route,
+    boost::beast::http::request_parser<
+        boost::beast::http::empty_body>&& header_parser) -> bool
+  {
+    using boost::system::error_code;
+
+    namespace qi   = boost::spirit::qi;
+    namespace http = boost::beast::http;
+
+    auto const& rule    = route.rule;
+    auto const& handler = route.handler;
+
+    using route_type = std::decay_t<decltype(route)>;
+    using body_type  = typename route_type::body_type;
+
+    if (
+      qi::parse(target.begin(), target.end(), rule))
+    {
+      foxy::async_read_body<body_type>(
+        socket_, buffer_,
+        std::move(header_parser),
+        make_stranded(
+          [sp = this->shared_from_this(), &handler]
+          (error_code ec, http::request<body_type>&& req)
+          {
+            handler(ec, std::move(req), std::move(sp));
+          }));
+
+      return true;
+    }
+
+    return false;
+  }
+
+  template <
+    typename SynthAttrType,
+    typename Route,
+    std::enable_if_t<
+      !std::is_move_constructible<SynthAttrType>::value &&
+      !std::is_same<void, SynthAttrType>::value, bool> = false
+  >
+  auto parse_rule_and_read_body(
+    boost::beast::string_view const target,
+    Route const& route,
+    boost::beast::http::request_parser<
+        boost::beast::http::empty_body>&& header_parser) -> bool
+  {
+    using boost::system::error_code;
+
+    namespace qi   = boost::spirit::qi;
+    namespace http = boost::beast::http;
+
+    // requires default-constructible for all parsing types
+    SynthAttrType attr{};
+
+    auto const& rule    = route.rule;
+    auto const& handler = route.handler;
+
+    using route_type = std::decay_t<decltype(route)>;
+    using body_type  = typename route_type::body_type;
+
+    if (
+      qi::parse(target.begin(), target.end(), rule, attr))
+    {
+      foxy::async_read_body<body_type>(
+        socket_, buffer_,
+        std::move(header_parser),
+        make_stranded(
+          [sp = this->shared_from_this(), &handler, attr]
+          (error_code ec, http::request<body_type>&& req)
+          {
+            handler(ec, std::move(req), std::move(sp), attr);
+          }));
+
+      return true;
+    }
+
+    return false;
+  }
+
+  template <
+    typename SynthAttrType,
+    typename Route,
+    std::enable_if_t<
+      std::is_move_constructible<SynthAttrType>::value, bool> = false
+  >
+  auto parse_rule_and_read_body(
+    boost::beast::string_view const target,
+    Route const& route,
+    boost::beast::http::request_parser<
+        boost::beast::http::empty_body>&& header_parser) -> bool
+  {
+    using boost::system::error_code;
+
+    namespace qi   = boost::spirit::qi;
+    namespace http = boost::beast::http;
+
+    // requires default-constructible for all parsing types
+    SynthAttrType attr{};
+
+    auto const& rule    = route.rule;
+    auto const& handler = route.handler;
+
+    using route_type = std::decay_t<decltype(route)>;
+    using body_type  = typename route_type::body_type;
+
+    if (
+      qi::parse(target.begin(), target.end(), rule, attr))
+    {
+      foxy::async_read_body<body_type>(
+        socket_, buffer_,
+        std::move(header_parser),
+        make_stranded(
+          [sp = this->shared_from_this(), &handler, v = std::move(attr)]
+          (error_code ec, http::request<body_type>&& req)
+          {
+            handler(ec, std::move(req), std::move(sp), std::move(v));
+          }));
+
+      return true;
+    }
+
+    return false;
+  }
+
 public:
   connection(socket_type socket, RouteList const& routes)
     : socket_{std::move(socket)}
@@ -132,7 +265,6 @@ auto foxy::connection<RouteList>::run(
         std::pointer_traits<
           std::decay_t<decltype(header_parser)>>::element_type;
 
-      auto self        = this;
       auto found_match = false;
 
       fusion::for_each(
@@ -141,32 +273,16 @@ auto foxy::connection<RouteList>::run(
         {
           if (found_match) { return; }
 
-          auto const& rule    = route.rule;
-          auto const& handler = route.handler;
-
-          using rule_type  = std::remove_reference_t<decltype(rule)>;
-          using route_type = std::decay_t<decltype(route)>;
-          using body_type  = typename route_type::body_type;
-
-          using sig_type = typename rule_type::sig_type;
+          using rule_type  = decltype(route.rule);
+          using sig_type   = typename rule_type::sig_type;
           using synth_attr_type = ct::return_type_t<sig_type>;
 
-          auto val = synth_attr_type{};
-
+          auto& p = *header_parser;
           if (
-           qi::parse(target.begin(), target.end(), rule, val)
-          ) {
+            parse_rule_and_read_body<synth_attr_type>(
+              target, route, std::move(p)))
+          {
             found_match = true;
-
-            foxy::async_read_body<body_type>(
-              self->socket_, self->buffer_,
-              std::move(*header_parser),
-              self->make_stranded(
-                [sp = self->shared_from_this(), &handler, val]
-                (error_code ec, http::request<body_type>&& req)
-                {
-                  handler(ec, std::move(req), std::move(sp), val);
-                }));
           }
         });
     }
