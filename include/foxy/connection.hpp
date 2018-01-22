@@ -56,7 +56,7 @@ private:
   template <typename F>
   auto make_stranded(F&& f)
   {
-    return asio::bind_executor(strand_, std::forward<F>(f));
+    return boost::asio::bind_executor(strand_, std::forward<F>(f));
   }
 
   template <
