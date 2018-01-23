@@ -9,6 +9,7 @@
 
 #include <boost/callable_traits.hpp>
 
+#include <boost/asio/post.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/coroutine.hpp>
@@ -42,14 +43,19 @@ struct connection
 {
 public:
   using socket_type = boost::asio::ip::tcp::socket;
-  using strand_type = boost::asio::strand<
-    boost::asio::io_context::executor_type>;
   using buffer_type = boost::beast::flat_buffer;
+  using strand_type =
+    boost::asio::strand<boost::asio::io_context::executor_type>;
+
+  using header_parser_type =
+    boost::beast::http::request_parser<boost::beast::http::empty_body>;
 
 private:
   socket_type socket_;
   strand_type strand_;
   buffer_type buffer_;
+
+  header_parser_type parser_;
 
   RouteList const& routes_;
 
@@ -65,34 +71,29 @@ private:
     std::enable_if_t<
       std::is_same<void, SynthAttrType>::value, bool> = false
   >
-  auto parse_rule_and_read_body(
-    boost::beast::string_view const target,
-    Route const& route,
-    boost::beast::http::request_parser<
-        boost::beast::http::empty_body>&& header_parser) -> bool
+  auto parse_attrs_into_handler(Route const& route) -> bool
   {
     using boost::system::error_code;
 
     namespace qi   = boost::spirit::qi;
     namespace http = boost::beast::http;
+    namespace asio = boost::asio;
 
     auto const& rule    = route.rule;
     auto const& handler = route.handler;
-
-    using route_type = std::decay_t<decltype(route)>;
-    using body_type  = typename route_type::body_type;
+    auto const  target  = parser_.get().target();
 
     if (
       qi::parse(target.begin(), target.end(), rule))
     {
-      foxy::async_read_body<body_type>(
-        socket_, buffer_,
-        std::move(header_parser),
+      asio::post(
         make_stranded(
-          [sp = this->shared_from_this(), &handler]
-          (error_code ec, http::request<body_type>&& req)
+          [
+            self = this->shared_from_this(),
+            &handler
+          ](void)
           {
-            handler(ec, std::move(req), std::move(sp));
+            handler({}, self->parser_, std::move(self));
           }));
 
       return true;
@@ -108,11 +109,7 @@ private:
       !std::is_move_constructible<SynthAttrType>::value &&
       !std::is_same<void, SynthAttrType>::value, bool> = false
   >
-  auto parse_rule_and_read_body(
-    boost::beast::string_view const target,
-    Route const& route,
-    boost::beast::http::request_parser<
-        boost::beast::http::empty_body>&& header_parser) -> bool
+  auto parse_attrs_into_handler(Route const& route) -> bool
   {
     using boost::system::error_code;
 
@@ -124,21 +121,20 @@ private:
 
     auto const& rule    = route.rule;
     auto const& handler = route.handler;
-
-    using route_type = std::decay_t<decltype(route)>;
-    using body_type  = typename route_type::body_type;
+    auto const  target  = parser_.get().target();
 
     if (
       qi::parse(target.begin(), target.end(), rule, attr))
     {
-      foxy::async_read_body<body_type>(
-        socket_, buffer_,
-        std::move(header_parser),
+      asio::post(
         make_stranded(
-          [sp = this->shared_from_this(), &handler, attr]
-          (error_code ec, http::request<body_type>&& req)
+          [
+            self = this->shared_from_this(),
+            &handler,
+            attr
+          ](void)
           {
-            handler(ec, std::move(req), std::move(sp), attr);
+            handler({}, self->parser_, std::move(self), attr);
           }));
 
       return true;
@@ -153,11 +149,7 @@ private:
     std::enable_if_t<
       std::is_move_constructible<SynthAttrType>::value, bool> = false
   >
-  auto parse_rule_and_read_body(
-    boost::beast::string_view const target,
-    Route const& route,
-    boost::beast::http::request_parser<
-        boost::beast::http::empty_body>&& header_parser) -> bool
+  auto parse_attrs_into_handler(Route const& route) -> bool
   {
     using boost::system::error_code;
 
@@ -169,21 +161,20 @@ private:
 
     auto const& rule    = route.rule;
     auto const& handler = route.handler;
-
-    using route_type = std::decay_t<decltype(route)>;
-    using body_type  = typename route_type::body_type;
+    auto const  target  = parser_.get().target();
 
     if (
       qi::parse(target.begin(), target.end(), rule, attr))
     {
-      foxy::async_read_body<body_type>(
-        socket_, buffer_,
-        std::move(header_parser),
+      asio::post(
         make_stranded(
-          [sp = this->shared_from_this(), &handler, v = std::move(attr)]
-          (error_code ec, http::request<body_type>&& req)
+          [
+            self = this->shared_from_this(),
+            &handler,
+            attr_v = std::move(attr)
+          ](void)
           {
-            handler(ec, std::move(req), std::move(sp), std::move(v));
+            handler({}, self->parser_, std::move(self), std::move(attr_v));
           }));
 
       return true;
@@ -205,12 +196,15 @@ public:
     return socket_;
   }
 
+  auto get_buffer(void) & noexcept -> buffer_type&
+  {
+    return buffer_;
+  }
+
   auto run(
     boost::system::error_code const  ec = {},
     std::size_t const bytes_transferred = 0,
-    std::shared_ptr<
-      boost::beast::http::request_parser<
-        boost::beast::http::empty_body>>  header_parser = nullptr) -> void;
+    std::shared_ptr<header_parser_type> header_parser = nullptr) -> void;
 };
 
 #include <boost/asio/yield.hpp>
@@ -218,9 +212,7 @@ template <typename RouteList>
 auto foxy::connection<RouteList>::run(
   boost::system::error_code const ec,
   std::size_t const bytes_transferred,
-  std::shared_ptr<
-    boost::beast::http::request_parser<
-      boost::beast::http::empty_body>>  header_parser) -> void
+  std::shared_ptr<header_parser_type> header_parser) -> void
 {
   namespace ct     = boost::callable_traits;
   namespace qi     = boost::spirit::qi;
@@ -232,56 +224,34 @@ auto foxy::connection<RouteList>::run(
 
   reenter (*this) {
     yield {
-      auto tmp_parser =
-        std::make_shared<http::request_parser<http::empty_body>>();
-
-      auto& p = *tmp_parser;
-
       http::async_read_header(
-        socket_, buffer_, p,
+        socket_, buffer_, parser_,
         make_stranded(
-          [
-            self   = this->shared_from_this(),
-            parser = std::move(tmp_parser)
-          ](
+          [self = this->shared_from_this()](
             error_code  const ec,
-            std::size_t const bytes_transferred
-          ) -> void
+            std::size_t const bytes_transferred) -> void
           {
             if (ec) {
               return fail(ec, "header parsing");
             }
-            self->run(ec, bytes_transferred, std::move(parser));
+            self->run({}, bytes_transferred);
           }));
     }
 
     yield {
-      auto const partial_request =
-        http::request<http::empty_body>{header_parser->get()};
-
-      auto const target = partial_request.target();
-
-      using element_type =
-        std::pointer_traits<
-          std::decay_t<decltype(header_parser)>>::element_type;
-
       auto found_match = false;
 
       fusion::for_each(
         routes_,
-        [=, &header_parser, &found_match](auto const& route) -> void
+        [=, &found_match](auto const& route) -> void
         {
           if (found_match) { return; }
 
-          using rule_type  = decltype(route.rule);
-          using sig_type   = typename rule_type::sig_type;
+          using rule_type = decltype(route.rule);
+          using sig_type  = typename rule_type::sig_type;
           using synth_attr_type = ct::return_type_t<sig_type>;
 
-          auto& p = *header_parser;
-          if (
-            parse_rule_and_read_body<synth_attr_type>(
-              target, route, std::move(p)))
-          {
+          if (parse_attrs_into_handler<synth_attr_type>(route)) {
             found_match = true;
           }
         });

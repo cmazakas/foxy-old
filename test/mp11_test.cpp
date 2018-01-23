@@ -35,8 +35,6 @@ auto apply_rules(
     routes,
     [=](auto const& route) -> void
     {
-      using route_type = std::decay_t<decltype(route)>;
-      using body_type = typename route_type::body_type;
       // std::cout << std::boolalpha << qi::parse(sv.begin(), sv.end(), rule) << '\n';
     });
 }
@@ -51,7 +49,7 @@ TEST_CASE("Random MP11 stuff")
 
     auto const sv     = beast::string_view{"5"};
     auto const routes = foxy::make_routes(
-      foxy::make_route<http::string_body>(int_rule, [](){}));
+      foxy::make_route(int_rule, [](){}));
 
     REQUIRE(qi::parse(sv.begin(), sv.end(), int_rule));
     REQUIRE(qi::parse(sv.begin(), sv.end(), dbl_rule));

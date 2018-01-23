@@ -46,42 +46,46 @@ TEST_CASE("Our listener type")
     auto const int_rule  = qi::rule<char const*>{"/" >> qi::int_};
     auto const name_rule = qi::rule<char const*, std::string()>{"/" >> +qi::alpha};
 
-    auto const route_handler =
+    auto const int_handler =
       [](
         error_code const ec,
-        http::request<http::string_body> request,
-        auto connection) -> void
+        http::request_parser<http::empty_body>& parser,
+        auto conn) -> void
       {
-        auto const target = request.target();
+        using body_type = http::string_body;
+
+        auto str_parser = http::request_parser<body_type>{std::move(parser)};
+        http::read(conn->get_socket(), conn->get_buffer(), str_parser);
+
+        auto req = http::request<body_type>{str_parser.release()};
 
         auto res = http::response<http::string_body>{http::status::ok, 11};
         res.body() =
-          "Received the following request-target: " +
-          std::string{target.begin(), target.end()};
+          "Received the following content: " + req.body();
 
         res.prepare_payload();
 
-        http::write(connection->get_socket(), res);
-        connection->run(ec);
+        http::write(conn->get_socket(), res);
+        conn->run(ec);
       };
 
     auto const name_handler =
       [](
         error_code const ec,
-        http::request<http::empty_body> request,
-        auto connection,
+        http::request_parser<http::empty_body>&,
+        auto conn,
         std::string const name) -> void
       {
         auto res = http::response<http::string_body>{http::status::ok, 11};
         res.body() = name;
         res.prepare_payload();
-        http::write(connection->get_socket(), res);
-        connection->run(ec);
+        http::write(conn->get_socket(), res);
+        conn->run(ec);
       };
 
     auto routes = foxy::make_routes(
-      foxy::make_route<http::string_body>(int_rule, route_handler),
-      foxy::make_route<http::empty_body>(name_rule, name_handler));
+      foxy::make_route(int_rule, int_handler),
+      foxy::make_route(name_rule, name_handler));
 
     auto const endpoint = tcp::endpoint{ip::make_address_v4(addr), port};
 

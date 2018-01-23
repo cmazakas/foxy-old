@@ -9,13 +9,11 @@
 namespace foxy
 {
 template <
-  typename Body,
   typename Iterator, typename A1, typename A2, typename A3,
   typename Handler
 >
 struct route
 {
-  using body_type = Body;
   using rule_type = boost::spirit::qi::rule<Iterator, A1, A2, A3>;
 
   rule_type rule;
@@ -23,7 +21,6 @@ struct route
 };
 
 template <
-  typename Body,
   typename Iterator, typename A1, typename A2, typename A3,
   typename Handler
 >
@@ -32,7 +29,6 @@ auto make_route(
   Handler&& handler)
 {
   return route<
-    Body,
     Iterator, A1, A2, A3,
     Handler
   >{
