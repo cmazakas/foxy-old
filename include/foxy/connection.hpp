@@ -115,6 +115,7 @@ private:
 
     namespace qi   = boost::spirit::qi;
     namespace http = boost::beast::http;
+    namespace asio = boost::asio;
 
     // requires default-constructible for all parsing types
     SynthAttrType attr{};
@@ -155,6 +156,7 @@ private:
 
     namespace qi   = boost::spirit::qi;
     namespace http = boost::beast::http;
+    namespace asio = boost::asio;
 
     // requires default-constructible for all parsing types
     SynthAttrType attr{};
