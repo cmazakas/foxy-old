@@ -110,8 +110,8 @@ public:
   // main coroutine of async operation
 #include <boost/asio/yield.hpp>
   auto operator()(
-    boost::system::error_code const ec = {},
-    std::size_t               const bytes_transferred = 0
+    boost::system::error_code const ec  = {},
+    std::size_t const bytes_transferred = 0
   ) -> void
   {
     auto& p = *p_;
@@ -159,8 +159,7 @@ auto async_read_body(
       OutBody, boost::beast::http::basic_fields<Allocator>>&&))
 {
   static_assert(
-    is_async_read_stream_v<AsyncReadStream>,
-    "Type traits not met");
+    is_async_read_stream_v<AsyncReadStream>, "Type traits not met");
 
   using fields_type  = boost::beast::http::basic_fields<Allocator>;
   using request_type = boost::beast::http::request<OutBody, fields_type>;
@@ -176,6 +175,8 @@ auto async_read_body(
     BOOST_ASIO_HANDLER_TYPE(MessageHandler, handler_type)
   >;
 
+  // remember async_completion only constructs with
+  // lvalue ref to CompletionToken
   boost::asio::async_completion<
     MessageHandler, handler_type> init{handler};
 

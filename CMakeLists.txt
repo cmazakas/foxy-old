@@ -42,23 +42,24 @@ target_link_libraries(
   foxy_core
 
   PUBLIC
-  debug ${Boost_SYSTEM_LIBRARY_DEBUG}
-  debug ${Boost_COROUTINE_LIBRARY_DEBUG}
-
-  optimized ${Boost_SYSTEM_LIBRARY_RELEASE}
-  optimized ${Boost_COROUTINE_LIBRARY_RELEASE}
+  ${Boost_COROUTINE_LIBRARY}
+  ${Boost_SYSTEM_LIBRARY}
 )
+
+add_library(test_utils INTERFACE)
+target_include_directories(test_utils INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/test/include)
 
 add_executable(
   foxy_tests
 
   ${CMAKE_CURRENT_SOURCE_DIR}/test/main.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/test/server_test.cpp
+  # ${CMAKE_CURRENT_SOURCE_DIR}/test/server_test.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/async_read_body_test.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/mp11_test.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/test/listener_test.cpp
+  #${CMAKE_CURRENT_SOURCE_DIR}/test/listener_test.cpp
 )
 
-target_link_libraries(foxy_tests foxy_core)
+target_link_libraries(foxy_tests foxy_core test_utils)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake.modules/")
 enable_testing()

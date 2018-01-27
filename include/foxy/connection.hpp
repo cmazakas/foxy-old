@@ -102,12 +102,54 @@ private:
     return false;
   }
 
+  // template <
+  //   typename SynthAttrType,
+  //   typename Route,
+  //   std::enable_if_t<
+  //     !std::is_move_constructible<SynthAttrType>::value &&
+  //     !std::is_same<void, SynthAttrType>::value, bool> = false
+  // >
+  // auto parse_attrs_into_handler(Route const& route) -> bool
+  // {
+  //   using boost::system::error_code;
+
+  //   namespace qi   = boost::spirit::qi;
+  //   namespace http = boost::beast::http;
+  //   namespace asio = boost::asio;
+
+  //   // requires default-constructible for all parsing types
+  //   SynthAttrType attr{};
+
+  //   auto const& rule    = route.rule;
+  //   auto const& handler = route.handler;
+  //   auto const  target  = parser_.get().target();
+
+  //   if (
+  //     qi::parse(target.begin(), target.end(), rule, attr))
+  //   {
+  //     asio::post(
+  //       make_stranded(
+  //         [
+  //           self = this->shared_from_this(),
+  //           &handler,
+  //           attr
+  //         ](void)
+  //         {
+  //           handler({}, self->parser_, std::move(self), attr);
+  //         }));
+
+  //     return true;
+  //   }
+
+  //   return false;
+  // }
+
   template <
     typename SynthAttrType,
     typename Route,
-    std::enable_if_t<
-      !std::is_move_constructible<SynthAttrType>::value &&
-      !std::is_same<void, SynthAttrType>::value, bool> = false
+    // std::enable_if_t<
+    //   std::is_move_constructible<SynthAttrType>::value, bool> = false
+    std::enable_if_t<!std::is_same<void, SynthAttrType>::value, bool> = false
   >
   auto parse_attrs_into_handler(Route const& route) -> bool
   {
@@ -132,51 +174,10 @@ private:
           [
             self = this->shared_from_this(),
             &handler,
-            attr
-          ](void)
+            &attr
+          ](void) mutable
           {
-            handler({}, self->parser_, std::move(self), attr);
-          }));
-
-      return true;
-    }
-
-    return false;
-  }
-
-  template <
-    typename SynthAttrType,
-    typename Route,
-    std::enable_if_t<
-      std::is_move_constructible<SynthAttrType>::value, bool> = false
-  >
-  auto parse_attrs_into_handler(Route const& route) -> bool
-  {
-    using boost::system::error_code;
-
-    namespace qi   = boost::spirit::qi;
-    namespace http = boost::beast::http;
-    namespace asio = boost::asio;
-
-    // requires default-constructible for all parsing types
-    SynthAttrType attr{};
-
-    auto const& rule    = route.rule;
-    auto const& handler = route.handler;
-    auto const  target  = parser_.get().target();
-
-    if (
-      qi::parse(target.begin(), target.end(), rule, attr))
-    {
-      asio::post(
-        make_stranded(
-          [
-            self = this->shared_from_this(),
-            &handler,
-            attr_v = std::move(attr)
-          ](void)
-          {
-            handler({}, self->parser_, std::move(self), std::move(attr_v));
+            handler({}, self->parser_, std::move(self), std::move(attr));
           }));
 
       return true;
