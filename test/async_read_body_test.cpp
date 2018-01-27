@@ -54,19 +54,12 @@ TEST_CASE("async_read_body")
     auto const target = req_parser.get().target();
     REQUIRE(target == "/rawr");
 
-    REQUIRE(stream.buffer().size() > 0);
+    auto fut = foxy::async_read_body<http::string_body>(
+      stream, buf, std::move(req_parser), asio::use_future);
 
-    auto string_parser = http::request_parser<http::string_body>{std::move(req_parser)};
-    http::read(stream, buf, string_parser);
+    ioc.run();
 
-    auto msg = string_parser.release();
-
-    // auto fut = foxy::async_read_body<http::string_body>(
-    //   stream, buf, std::move(req_parser), asio::use_future);
-
-    // ioc.run();
-
-    // auto msg = fut.get();
+    auto msg = fut.get();
     REQUIRE(msg.body() == "I bestow the heads of virgins and the first-born sons.");
   }
 }

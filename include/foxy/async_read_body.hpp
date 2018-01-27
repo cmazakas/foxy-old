@@ -128,8 +128,6 @@ public:
         return fail(ec, "parsing message body");
       }
 
-      std::cout << "Transferred: " << bytes_transferred << '\n';
-
       p_.invoke(boost::system::error_code{}, p.parser.release());
     }
   }
