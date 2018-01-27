@@ -17,7 +17,8 @@
 
 #include <boost/beast/core/handler_ptr.hpp>
 
-#include "type_traits.hpp"
+#include "foxy/log.hpp"
+#include "foxy/type_traits.hpp"
 
 namespace foxy
 {
@@ -114,14 +115,22 @@ public:
     std::size_t const bytes_transferred = 0
   ) -> void
   {
+    if (ec) {
+      return fail(ec, "parsing message body");
+    }
+
     auto& p = *p_;
     reenter(*this) {
       yield boost::beast::http::async_read(
         p.stream, p.buffer, p.parser, std::move(*this));
 
-      if (!ec) {
-        p_.invoke(boost::system::error_code{}, p.parser.release());
+      if (ec) {
+        return fail(ec, "parsing message body");
       }
+
+      std::cout << "Transferred: " << bytes_transferred << '\n';
+
+      p_.invoke(boost::system::error_code{}, p.parser.release());
     }
   }
 #include <boost/asio/unyield.hpp>
