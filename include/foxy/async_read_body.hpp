@@ -11,6 +11,7 @@
 #include <boost/asio/associated_allocator.hpp>
 
 #include <boost/beast/http/read.hpp>
+#include <boost/beast/http/error.hpp>
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/message.hpp>
@@ -115,16 +116,20 @@ public:
     std::size_t const bytes_transferred = 0
   ) -> void
   {
-    if (ec) {
-      return fail(ec, "parsing message body");
-    }
+    namespace http = boost::beast::http;
 
     auto& p = *p_;
     reenter(*this) {
-      yield boost::beast::http::async_read(
-        p.stream, p.buffer, p.parser, std::move(*this));
+      if (!p.parser.is_done()) {
+        if (ec) {
+          return fail(ec, "parsing message body");
+        }
 
-      if (ec) {
+        yield http::async_read_some(
+          p.stream, p.buffer, p.parser, std::move(*this));
+      }
+
+      if (ec && ec != http::error::end_of_stream) {
         return fail(ec, "parsing message body");
       }
 
