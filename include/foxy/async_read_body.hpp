@@ -13,8 +13,6 @@
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/error.hpp>
 #include <boost/beast/http/parser.hpp>
-#include <boost/beast/http/fields.hpp>
-#include <boost/beast/http/message.hpp>
 
 #include <boost/beast/core/handler_ptr.hpp>
 
@@ -120,13 +118,15 @@ public:
 
     auto& p = *p_;
     reenter(*this) {
-      if (!p.parser.is_done()) {
+      while (!p.parser.is_done()) {
         if (ec) {
           return fail(ec, "parsing message body");
         }
 
         yield http::async_read_some(
           p.stream, p.buffer, p.parser, std::move(*this));
+
+        p.buffer.consume(bytes_transferred);
       }
 
       if (ec && ec != http::error::end_of_stream) {
