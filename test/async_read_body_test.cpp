@@ -24,6 +24,18 @@
 
 #include <catch.hpp>
 
+namespace
+{
+struct connection_mock
+{
+  boost::beast::test::stream& stream;
+  boost::beast::flat_buffer&  buffer_;
+
+  auto socket(void) -> decltype(auto) { return stream; }
+  auto buffer(void) -> decltype(auto) { return buffer_; }
+};
+}
+
 TEST_CASE("async_read_body")
 {
   namespace beast = boost::beast;
@@ -55,7 +67,9 @@ TEST_CASE("async_read_body")
     REQUIRE(target == "/rawr");
 
     auto fut = foxy::async_read_body<http::string_body>(
-      stream, buf, std::move(req_parser), asio::use_future);
+      connection_mock{stream, buf},
+      std::move(req_parser),
+      asio::use_future);
 
     ioc.run();
 

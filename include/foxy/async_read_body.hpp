@@ -1,14 +1,18 @@
 #ifndef FOXY_ASYNC_READ_BODY_HPP_
 #define FOXY_ASYNC_READ_BODY_HPP_
 
+#include <chrono>
 #include <utility>
+#include <type_traits>
 
 #include <boost/system/error_code.hpp>
 
 #include <boost/asio/coroutine.hpp>
 #include <boost/asio/async_result.hpp>
+#include <boost/asio/bind_executor.hpp>
 #include <boost/asio/associated_executor.hpp>
 #include <boost/asio/associated_allocator.hpp>
+#include <boost/asio/basic_deadline_timer.hpp>
 
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/error.hpp>
@@ -18,6 +22,7 @@
 
 #include "foxy/log.hpp"
 #include "foxy/type_traits.hpp"
+#include "foxy/header_parser.hpp"
 
 namespace foxy
 {
@@ -26,19 +31,18 @@ namespace detail
 template <
   typename AsyncReadStream,
   typename DynamicBuffer,
-  typename InBody,
   typename Allocator,
-  typename OutBody,
+  typename Body,
   typename Handler
 >
 struct read_body_op : public boost::asio::coroutine
 {
 public:
   using input_parser_type =
-    boost::beast::http::request_parser<InBody, Allocator>;
+    foxy::header_parser<Allocator>;
 
   using output_parser_type =
-    boost::beast::http::request_parser<OutBody, Allocator>;
+    boost::beast::http::request_parser<Body, Allocator>;
 
 private:
   struct state;
@@ -46,12 +50,15 @@ private:
 
   struct state
   {
+    using timer_type = boost::asio::basic_deadline_timer<std::chrono::seconds>;
+
     AsyncReadStream&   stream;
     DynamicBuffer&     buffer;
     output_parser_type parser;
+    // timer_type         timer;
 
     state(void)         = delete;
-    state(state&&)      = default;
+    state(state&&)      = delete;
     state(state const&) = default;
 
     state(
@@ -62,7 +69,12 @@ private:
     : stream{stream_}
     , buffer{buffer_}
     , parser{std::move(parser_)}
+    // , timer{stream.get_executor()}
     {
+      // timer.expires_from_now(std::chrono::seconds{30});
+      // timer.async_wait(
+      //   boost::asio::bind_executor(
+      //     stream.get_executor()));
     }
   };
 
@@ -143,47 +155,48 @@ public:
 /**
  * async_read_body
  *
- * Asynchronously read a request body, taking a parser
- * containg the header of the request and then switching
- * the body type from InBody to OutBody and invoking
- * the supplied handler with:
- * (error_code, http::request<OutBody, basic_fields<Allocator>>&&)
+ * Asynchronously read a request body given a complete
+ * `foxy::header_parser` object. The supplied message handler
+ * must be invokable with the following signature:
+ * void(error_code, http::request<Body, basic_fields<Allocator>>&&)
  */
 template <
-  typename OutBody,
-  typename AsyncReadStream,
-  typename DynamicBuffer,
-  typename InBody,
+  typename Body,
+  typename Connection,
   typename Allocator,
   typename MessageHandler
 >
 auto async_read_body(
-  AsyncReadStream&                    stream,
-  DynamicBuffer&                      buffer,
-  boost::beast::http::request_parser<
-    InBody, Allocator>&&              parser,
-  MessageHandler&&                    handler
+  Connection& connection,
+  foxy::header_parser<Allocator>&& parser,
+  MessageHandler&& handler
 ) -> BOOST_ASIO_INITFN_RESULT_TYPE(
   MessageHandler,
   void(
     boost::system::error_code,
     boost::beast::http::request<
-      OutBody, boost::beast::http::basic_fields<Allocator>>&&))
+      Body, boost::beast::http::basic_fields<Allocator>>&&))
 {
-  static_assert(
-    is_async_read_stream_v<AsyncReadStream>, "Type traits not met");
+  using async_read_stream_type =
+    std::decay<decltype(connection.socket())>::type;
 
-  using fields_type  = boost::beast::http::basic_fields<Allocator>;
-  using request_type = boost::beast::http::request<OutBody, fields_type>;
+  using dynamic_buffer_type =
+    std::decay<decltype(connection.buffer())>::type;
+
+  static_assert(
+    is_async_read_stream_v<async_read_stream_type>, "Type traits not met");
+
+  namespace http = boost::beast::http;
+
+  using request_type = http::request<Body, http::basic_fields<Allocator>>;
   using handler_type =
     void(boost::system::error_code ec, request_type&&);
 
   using read_body_op_type = detail::read_body_op<
-    AsyncReadStream,
-    DynamicBuffer,
-    InBody,
+    async_read_stream_type,
+    dynamic_buffer_type,
     Allocator,
-    OutBody,
+    Body,
     BOOST_ASIO_HANDLER_TYPE(MessageHandler, handler_type)
   >;
 
@@ -191,6 +204,9 @@ auto async_read_body(
   // lvalue ref to CompletionToken
   boost::asio::async_completion<
     MessageHandler, handler_type> init{handler};
+
+  auto& stream = connection.socket();
+  auto& buffer = connection.buffer();
 
   read_body_op_type{
     init.completion_handler,

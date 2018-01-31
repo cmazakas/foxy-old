@@ -194,12 +194,12 @@ public:
   {
   }
 
-  auto get_socket(void) & noexcept -> socket_type&
+  auto socket(void) & noexcept -> socket_type&
   {
     return socket_;
   }
 
-  auto get_buffer(void) & noexcept -> buffer_type&
+  auto buffer(void) & noexcept -> buffer_type&
   {
     return buffer_;
   }
