@@ -204,6 +204,11 @@ public:
     return buffer_;
   }
 
+  auto executor(void) & noexecpt -> strand_type&
+  {
+    return strand_;
+  }
+
   auto run(
     boost::system::error_code const  ec = {},
     std::size_t const bytes_transferred = 0,

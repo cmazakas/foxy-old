@@ -8,11 +8,11 @@
 #include <boost/system/error_code.hpp>
 
 #include <boost/asio/coroutine.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/associated_executor.hpp>
 #include <boost/asio/associated_allocator.hpp>
-#include <boost/asio/basic_deadline_timer.hpp>
 
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/error.hpp>
@@ -33,7 +33,8 @@ template <
   typename DynamicBuffer,
   typename Allocator,
   typename Body,
-  typename Handler
+  typename Handler,
+  typename TimeoutHandler
 >
 struct read_body_op : public boost::asio::coroutine
 {
@@ -50,12 +51,12 @@ private:
 
   struct state
   {
-    using timer_type = boost::asio::basic_deadline_timer<std::chrono::seconds>;
+    using timer_type = boost::asio::steady_timer;
 
     AsyncReadStream&   stream;
     DynamicBuffer&     buffer;
     output_parser_type parser;
-    // timer_type         timer;
+    timer_type         timer;
 
     state(void)         = delete;
     state(state&&)      = delete;
@@ -65,16 +66,15 @@ private:
       Handler&,
       AsyncReadStream&    stream_,
       DynamicBuffer&      buffer_,
-      input_parser_type&& parser_)
+      input_parser_type&& parser_,
+      TimeoutHandler&&    timeout_handler)
     : stream{stream_}
     , buffer{buffer_}
     , parser{std::move(parser_)}
-    // , timer{stream.get_executor()}
+    , timer{stream.get_executor()}
     {
       // timer.expires_from_now(std::chrono::seconds{30});
-      // timer.async_wait(
-      //   boost::asio::bind_executor(
-      //     stream.get_executor()));
+      // timer.async_wait(std::forward<TimeoutHandler>(timeout_handler));
     }
   };
 
@@ -88,12 +88,14 @@ public:
     DeducedHandler&&    handler,
     AsyncReadStream&    stream,
     DynamicBuffer&      buffer,
-    input_parser_type&& parser)
+    input_parser_type&& parser,
+    TimeoutHandler&&    timeout_handler)
   : p_{
     std::forward<DeducedHandler>(handler),
     stream,
     buffer,
-    std::move(parser)}
+    std::move(parser),
+    std::forward<TimeoutHandler>(timeout_handler)}
   {
   }
 
@@ -197,7 +199,12 @@ auto async_read_body(
     dynamic_buffer_type,
     Allocator,
     Body,
-    BOOST_ASIO_HANDLER_TYPE(MessageHandler, handler_type)
+    BOOST_ASIO_HANDLER_TYPE(MessageHandler, handler_type),
+    decltype(
+      boost::asio::bind_executor(
+      connection.executor(),
+      [](boost::system::error_code const&){})
+    )
   >;
 
   // remember async_completion only constructs with
@@ -212,7 +219,8 @@ auto async_read_body(
     init.completion_handler,
     stream,
     buffer,
-    std::move(parser)
+    std::move(parser),
+    timeout_handler
   }();
 
   return init.result.get();

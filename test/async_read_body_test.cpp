@@ -30,9 +30,11 @@ struct connection_mock
 {
   boost::beast::test::stream& stream;
   boost::beast::flat_buffer&  buffer_;
+  boost::asio::io_context::executor_type& executor_;
 
   auto socket(void) -> decltype(auto) { return stream; }
   auto buffer(void) -> decltype(auto) { return buffer_; }
+  auto executor(void) -> decltype(auto) { return executor_; }
 };
 }
 
@@ -67,7 +69,7 @@ TEST_CASE("async_read_body")
     REQUIRE(target == "/rawr");
 
     auto fut = foxy::async_read_body<http::string_body>(
-      connection_mock{stream, buf},
+      connection_mock{stream, buf, stream.get_executor()},
       std::move(req_parser),
       asio::use_future);
 
