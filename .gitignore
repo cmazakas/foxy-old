@@ -1,3 +1,5 @@
 beast
 build*
 .vscode
+CMakeSettings.json
+.vs

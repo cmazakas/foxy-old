@@ -21,22 +21,9 @@
 #include <boost/beast/http/string_body.hpp>
 
 #include "foxy/test/stream.hpp"
+#include "foxy/header_parser.hpp"
 
 #include <catch.hpp>
-
-namespace
-{
-struct connection_mock
-{
-  boost::beast::test::stream& stream;
-  boost::beast::flat_buffer&  buffer_;
-  boost::asio::io_context::executor_type& executor_;
-
-  auto socket(void) -> decltype(auto) { return stream; }
-  auto buffer(void) -> decltype(auto) { return buffer_; }
-  auto executor(void) -> decltype(auto) { return executor_; }
-};
-}
 
 TEST_CASE("async_read_body")
 {
@@ -60,17 +47,20 @@ TEST_CASE("async_read_body")
 
     beast::ostream(stream.buffer()) << req;
 
-    auto req_parser = http::request_parser<http::empty_body>{};
+    auto header_parser = foxy::header_parser<>{};
 
-    auto const bytes_read = http::read_header(stream, buf, req_parser);
+    auto const bytes_read = http::read_header(stream, buf, header_parser);
     REQUIRE(bytes_read > 0);
 
-    auto const target = req_parser.get().target();
+    auto const target = header_parser.get().target();
     REQUIRE(target == "/rawr");
 
+    boost::asio::steady_timer timer{ioc};
+
     auto fut = foxy::async_read_body<http::string_body>(
-      connection_mock{stream, buf, stream.get_executor()},
-      std::move(req_parser),
+      stream, buf,
+      std::move(header_parser),
+      timer,
       asio::use_future);
 
     ioc.run();

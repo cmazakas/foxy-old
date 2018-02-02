@@ -34,7 +34,7 @@ template <
   typename Allocator,
   typename Body,
   typename Handler,
-  typename TimeoutHandler
+  typename Timer
 >
 struct read_body_op : public boost::asio::coroutine
 {
@@ -51,12 +51,10 @@ private:
 
   struct state
   {
-    using timer_type = boost::asio::steady_timer;
-
     AsyncReadStream&   stream;
     DynamicBuffer&     buffer;
     output_parser_type parser;
-    timer_type         timer;
+    Timer&             timer;
 
     state(void)         = delete;
     state(state&&)      = delete;
@@ -67,11 +65,11 @@ private:
       AsyncReadStream&    stream_,
       DynamicBuffer&      buffer_,
       input_parser_type&& parser_,
-      TimeoutHandler&&    timeout_handler)
+      Timer&              timer_)
     : stream{stream_}
     , buffer{buffer_}
     , parser{std::move(parser_)}
-    , timer{stream.get_executor()}
+    , timer{timer_}
     {
       // timer.expires_from_now(std::chrono::seconds{30});
       // timer.async_wait(std::forward<TimeoutHandler>(timeout_handler));
@@ -89,13 +87,13 @@ public:
     AsyncReadStream&    stream,
     DynamicBuffer&      buffer,
     input_parser_type&& parser,
-    TimeoutHandler&&    timeout_handler)
+    Timer&              timer)
   : p_{
     std::forward<DeducedHandler>(handler),
     stream,
     buffer,
     std::move(parser),
-    std::forward<TimeoutHandler>(timeout_handler)}
+    timer}
   {
   }
 
@@ -164,14 +162,18 @@ public:
  */
 template <
   typename Body,
-  typename Connection,
+  typename AsyncReadStream,
+  typename DynamicBuffer,
   typename Allocator,
+  typename Timer,
   typename MessageHandler
 >
 auto async_read_body(
-  Connection& connection,
+  AsyncReadStream&                 stream,
+  DynamicBuffer&                   buffer,
   foxy::header_parser<Allocator>&& parser,
-  MessageHandler&& handler
+  Timer&                           timer,
+  MessageHandler&&                 handler
 ) -> BOOST_ASIO_INITFN_RESULT_TYPE(
   MessageHandler,
   void(
@@ -179,32 +181,23 @@ auto async_read_body(
     boost::beast::http::request<
       Body, boost::beast::http::basic_fields<Allocator>>&&))
 {
-  using async_read_stream_type =
-    std::decay<decltype(connection.socket())>::type;
-
-  using dynamic_buffer_type =
-    std::decay<decltype(connection.buffer())>::type;
-
-  static_assert(
-    is_async_read_stream_v<async_read_stream_type>, "Type traits not met");
-
   namespace http = boost::beast::http;
 
+  static_assert(
+    is_async_read_stream_v<AsyncReadStream>, "Type traits not met");
+
   using request_type = http::request<Body, http::basic_fields<Allocator>>;
+
   using handler_type =
     void(boost::system::error_code ec, request_type&&);
 
   using read_body_op_type = detail::read_body_op<
-    async_read_stream_type,
-    dynamic_buffer_type,
+    AsyncReadStream,
+    DynamicBuffer,
     Allocator,
     Body,
     BOOST_ASIO_HANDLER_TYPE(MessageHandler, handler_type),
-    decltype(
-      boost::asio::bind_executor(
-      connection.executor(),
-      [](boost::system::error_code const&){})
-    )
+    Timer
   >;
 
   // remember async_completion only constructs with
@@ -212,15 +205,12 @@ auto async_read_body(
   boost::asio::async_completion<
     MessageHandler, handler_type> init{handler};
 
-  auto& stream = connection.socket();
-  auto& buffer = connection.buffer();
-
   read_body_op_type{
     init.completion_handler,
     stream,
     buffer,
     std::move(parser),
-    timeout_handler
+    timer
   }();
 
   return init.result.get();
