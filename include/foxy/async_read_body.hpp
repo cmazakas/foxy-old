@@ -71,8 +71,8 @@ private:
     , parser{std::move(parser_)}
     , timer{timer_}
     {
-      // timer.expires_from_now(std::chrono::seconds{30});
-      // timer.async_wait(std::forward<TimeoutHandler>(timeout_handler));
+       timer.expires_from_now(std::chrono::seconds{30});
+       //timer.async_wait(std::forward<TimeoutHandler>(timeout_handler));
     }
   };
 
@@ -174,22 +174,21 @@ auto async_read_body(
   foxy::header_parser<Allocator>&& parser,
   Timer&                           timer,
   MessageHandler&&                 handler
-) -> BOOST_ASIO_INITFN_RESULT_TYPE(
-  MessageHandler,
+) -> BOOST_ASIO_INITFN_RESULT_TYPE(MessageHandler,
   void(
     boost::system::error_code,
     boost::beast::http::request<
       Body, boost::beast::http::basic_fields<Allocator>>&&))
 {
-  namespace http = boost::beast::http;
-
   static_assert(
     is_async_read_stream_v<AsyncReadStream>, "Type traits not met");
 
-  using request_type = http::request<Body, http::basic_fields<Allocator>>;
+  namespace http = boost::beast::http;
 
   using handler_type =
-    void(boost::system::error_code ec, request_type&&);
+    void(
+      boost::system::error_code ec,
+      http::request<Body, http::basic_fields<Allocator>>&&);
 
   using read_body_op_type = detail::read_body_op<
     AsyncReadStream,
