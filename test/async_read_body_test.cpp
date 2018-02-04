@@ -79,14 +79,19 @@ TEST_CASE("async_read_body")
     auto stream = test::stream{io};
     auto buf    = beast::flat_buffer{};
 
+    constexpr
+    auto const body_size = std::uint64_t{4096 * 1024};
+
     {
       auto req = http::request<body_t>{http::verb::post, "/", 11};
-      req.body() = std::vector<std::uint8_t>(4096, 137);
+      req.body() = std::vector<std::uint8_t>(body_size, 137);
       req.prepare_payload();
       beast::ostream(stream.buffer()) << req;
     }
 
     auto header_parser = foxy::header_parser<>{};
+    header_parser.body_limit(body_size * 2);
+
     http::read_header(stream, buf, header_parser);
 
     asio::steady_timer timer{io};
@@ -101,6 +106,6 @@ TEST_CASE("async_read_body")
 
     auto req = http::request<body_t>{fut.get()};
 
-    REQUIRE(req.body().size() == 4096);
+    REQUIRE(req.body().size() == (4096 * 1024));
   }
 }
