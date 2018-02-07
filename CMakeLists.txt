@@ -57,6 +57,7 @@ add_executable(
   ${CMAKE_CURRENT_SOURCE_DIR}/test/async_read_body_test.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/mp11_test.cpp
   #${CMAKE_CURRENT_SOURCE_DIR}/test/listener_test.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/timer_test.cpp
 )
 
 target_link_libraries(foxy_tests foxy_core test_utils)

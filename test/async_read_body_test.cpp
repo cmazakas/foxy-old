@@ -90,7 +90,7 @@ TEST_CASE("async_read_body")
     }
 
     auto header_parser = foxy::header_parser<>{};
-    header_parser.body_limit(body_size * 2);
+    header_parser.body_limit(body_size);
 
     http::read_header(stream, buf, header_parser);
 
@@ -106,6 +106,6 @@ TEST_CASE("async_read_body")
 
     auto req = http::request<body_t>{fut.get()};
 
-    REQUIRE(req.body().size() == (4096 * 1024));
+    REQUIRE(req.body().size() == body_size);
   }
 }
