@@ -68,7 +68,7 @@ private:
     : stream{stream_}
     , buffer{buffer_}
     , parser{std::move(parser_)}
-    , timer{stream.get_executor()}
+    , timer{stream.get_executor().context()}
     {
       //  timer.expires_from_now(std::chrono::seconds{30});
        //timer.async_wait(std::forward<TimeoutHandler>(timeout_handler));
@@ -137,7 +137,7 @@ public:
 
         p.buffer.consume(bytes_transferred);
 
-        std::cout << "read in : " << bytes_transferred << " bytes\n";
+        // std::cout << "read in : " << bytes_transferred << " bytes\n";
       }
 
       if (ec && ec != http::error::end_of_stream) {
