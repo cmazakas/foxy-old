@@ -58,7 +58,7 @@ private:
 
     state(void)         = delete;
     state(state&&)      = delete;
-    state(state const&) = default;
+    state(state const&) = delete;
 
     state(
       Handler&,
