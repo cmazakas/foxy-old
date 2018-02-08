@@ -61,7 +61,6 @@ TEST_CASE("async_read_body")
     auto fut = foxy::async_read_body<http::string_body>(
       stream, buf,
       std::move(header_parser),
-      timer,
       asio::use_future);
 
     ioc.run();
@@ -99,7 +98,7 @@ TEST_CASE("async_read_body")
     auto fut = foxy::async_read_body<body_t>(
     stream, buf,
     std::move(header_parser),
-    timer,
+    // timer,
     asio::use_future);
 
     io.run();

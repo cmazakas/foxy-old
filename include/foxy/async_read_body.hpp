@@ -54,7 +54,7 @@ private:
     AsyncReadStream&   stream;
     DynamicBuffer&     buffer;
     output_parser_type parser;
-    Timer&             timer;
+    Timer              timer;
 
     state(void)         = delete;
     state(state&&)      = delete;
@@ -64,14 +64,13 @@ private:
       Handler&,
       AsyncReadStream&    stream_,
       DynamicBuffer&      buffer_,
-      input_parser_type&& parser_,
-      Timer&              timer_)
+      input_parser_type&& parser_)
     : stream{stream_}
     , buffer{buffer_}
     , parser{std::move(parser_)}
-    , timer{timer_}
+    , timer{stream.get_executor()}
     {
-       timer.expires_from_now(std::chrono::seconds{30});
+      //  timer.expires_from_now(std::chrono::seconds{30});
        //timer.async_wait(std::forward<TimeoutHandler>(timeout_handler));
     }
   };
@@ -86,14 +85,12 @@ public:
     DeducedHandler&&    handler,
     AsyncReadStream&    stream,
     DynamicBuffer&      buffer,
-    input_parser_type&& parser,
-    Timer&              timer)
+    input_parser_type&& parser)
   : p_{
     std::forward<DeducedHandler>(handler),
     stream,
     buffer,
-    std::move(parser),
-    timer}
+    std::move(parser)}
   {
   }
 
@@ -139,6 +136,8 @@ public:
           p.stream, p.buffer, p.parser, std::move(*this));
 
         p.buffer.consume(bytes_transferred);
+
+        std::cout << "read in : " << bytes_transferred << " bytes\n";
       }
 
       if (ec && ec != http::error::end_of_stream) {
@@ -165,14 +164,12 @@ template <
   typename AsyncReadStream,
   typename DynamicBuffer,
   typename Allocator,
-  typename Timer,
   typename MessageHandler
 >
 auto async_read_body(
   AsyncReadStream&                 stream,
   DynamicBuffer&                   buffer,
   foxy::header_parser<Allocator>&& parser,
-  Timer&                           timer,
   MessageHandler&&                 handler
 ) -> BOOST_ASIO_INITFN_RESULT_TYPE(MessageHandler,
   void(
@@ -196,7 +193,7 @@ auto async_read_body(
     Allocator,
     Body,
     BOOST_ASIO_HANDLER_TYPE(MessageHandler, handler_type),
-    Timer
+    boost::asio::steady_timer
   >;
 
   // remember async_completion only constructs with
@@ -208,8 +205,7 @@ auto async_read_body(
     init.completion_handler,
     stream,
     buffer,
-    std::move(parser),
-    timer
+    std::move(parser)
   }();
 
   return init.result.get();
