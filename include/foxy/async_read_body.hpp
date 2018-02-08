@@ -136,15 +136,14 @@ public:
           p.stream, p.buffer, p.parser, std::move(*this));
 
         p.buffer.consume(bytes_transferred);
-
-        // std::cout << "read in : " << bytes_transferred << " bytes\n";
       }
 
       if (ec && ec != http::error::end_of_stream) {
         return fail(ec, "parsing message body");
       }
 
-      p_.invoke(boost::system::error_code{}, p.parser.release());
+      auto msg = p.parser.release();
+      p_.invoke(boost::system::error_code{}, std::move(msg));
     }
   }
 #include <boost/asio/unyield.hpp>
