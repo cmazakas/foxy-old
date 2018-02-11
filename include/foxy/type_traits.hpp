@@ -8,13 +8,18 @@ namespace foxy
 {
 template <typename Stream>
 constexpr
-bool const is_async_read_stream_v =
-  boost::beast::is_async_read_stream<Stream>::value;
+bool const
+is_async_read_stream_v = boost::beast::is_async_read_stream<Stream>::value;
 
 template <typename Handler, typename Signature>
 constexpr
-bool const is_completion_handler_v =
-  boost::beast::is_completion_handler<Handler, Signature>::value;
+bool const
+is_completion_handler_v = boost::beast::is_completion_handler<Handler, Signature>::value;
+
+template <typename Body>
+constexpr
+bool const
+is_body_v = boost::beast::http::is_body<Body>::value;
 } // foxy
 
 #endif // FOXY_TYPE_TRAITS_HPP_
