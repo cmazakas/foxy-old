@@ -56,8 +56,6 @@ TEST_CASE("async_read_body")
     auto const target = header_parser.get().target();
     REQUIRE(target == "/rawr");
 
-    boost::asio::steady_timer timer{ioc};
-
     auto fut = foxy::async_read_body<http::string_body>(
       stream, buf,
       std::move(header_parser),
@@ -93,12 +91,9 @@ TEST_CASE("async_read_body")
 
     http::read_header(stream, buf, header_parser);
 
-    asio::steady_timer timer{io};
-
     auto fut = foxy::async_read_body<body_t>(
     stream, buf,
     std::move(header_parser),
-    // timer,
     asio::use_future);
 
     io.run();
