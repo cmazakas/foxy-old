@@ -1,15 +1,11 @@
 #ifndef FOXY_CONNECTION_HPP_
 #define FOXY_CONNECTION_HPP_
 
-#include <memory>      // shared_ptr, make_shared, enable_shared_from_this
-#include <cstddef>     // size_t
-#include <utility>     // forward/move
-#include <iostream>    // cout debugging
-#include <type_traits> // remove_reference, decay
+#include <memory>
+#include <cstddef>
+#include <utility>
+#include <iostream>
 
-#include <boost/callable_traits.hpp>
-
-#include <boost/asio/post.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/coroutine.hpp>
@@ -18,18 +14,7 @@
 
 #include <boost/system/error_code.hpp>
 
-#include <boost/beast/http/read.hpp>
-#include <boost/beast/http/parser.hpp>
-#include <boost/beast/http/message.hpp>
-#include <boost/beast/http/empty_body.hpp>
-
-#include <boost/beast/core/string.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
-
-#include <boost/fusion/container/list.hpp>
-#include <boost/fusion/algorithm/iteration/for_each.hpp>
-
-#include <boost/spirit/include/qi_parse.hpp>
 
 #include "foxy/log.hpp"
 #include "foxy/header_parser.hpp"
@@ -63,81 +48,16 @@ private:
   }
 
 public:
-  connection(socket_type socket)
-    : socket_(std::move(socket))
-    , strand_(socket_.get_executor())
-  {
-  }
+  connection(socket_type socket);
 
-  auto socket(void) & noexcept -> socket_type&
-  {
-    return socket_;
-  }
-
-  auto buffer(void) & noexcept -> buffer_type&
-  {
-    return buffer_;
-  }
-
-  auto executor(void) & noexcept -> strand_type&
-  {
-    return strand_;
-  }
+  auto socket(void)   & noexcept -> socket_type&;
+  auto buffer(void)   & noexcept -> buffer_type&;
+  auto executor(void) & noexcept -> strand_type&;
 
   auto run(
     boost::system::error_code const  ec = {},
     std::size_t const bytes_transferred = 0) -> void;
 };
-
-#include <boost/asio/yield.hpp>
-auto foxy::connection::run(
-  boost::system::error_code const ec,
-  std::size_t const bytes_transferred) -> void
-{
-  namespace asio   = boost::asio;
-  namespace http   = boost::beast::http;
-
-  using boost::system::error_code;
-
-  reenter (*this) {
-    yield {
-      http::async_read_header(
-        socket_, buffer_, parser_,
-        make_stranded(
-          [self = this->shared_from_this()](
-            error_code  const ec,
-            std::size_t const bytes_transferred) -> void
-          {
-            if (ec) {
-              return fail(ec, "header parsing");
-            }
-            self->run({}, bytes_transferred);
-          }));
-    }
-
-    // yield {
-    //   auto found_match = false;
-
-    //   fusion::for_each(
-    //     routes_,
-    //     [=, &found_match](auto const& route) -> void
-    //     {
-    //       if (found_match) { return; }
-
-    //       using rule_type = decltype(route.rule);
-    //       using sig_type  = typename rule_type::sig_type;
-    //       using synth_attr_type = ct::return_type_t<sig_type>;
-
-    //       if (parse_attrs_into_handler<synth_attr_type>(route)) {
-    //         found_match = true;
-    //       }
-    //     });
-    // }
-
-    socket_.shutdown(socket_type::shutdown_both);
-  }
-}
-#include <boost/asio/unyield.hpp>
 
 } // foxy
 

@@ -35,12 +35,12 @@ TEST_CASE("async_read_body")
 
   SECTION("should do as advertised")
   {
-    asio::io_context ioc{};
+    asio::io_context ioc;
 
-    auto stream = test::stream{ioc};
-    auto buf    = beast::flat_buffer{};
+    auto stream = test::stream(ioc);
+    auto buf    = beast::flat_buffer();
 
-    auto req = http::request<http::string_body>{http::verb::get, "/rawr", 11};
+    auto req = http::request<http::string_body>(http::verb::get, "/rawr", 11);
     req.body() = "I bestow the heads of virgins and the first-born sons.";
     req.prepare_payload();
 
@@ -48,7 +48,7 @@ TEST_CASE("async_read_body")
 
     beast::ostream(stream.buffer()) << req;
 
-    auto header_parser = foxy::header_parser<>{};
+    auto header_parser = foxy::header_parser<>();
 
     auto const bytes_read = http::read_header(stream, buf, header_parser);
     REQUIRE(bytes_read > 0);
@@ -63,7 +63,7 @@ TEST_CASE("async_read_body")
 
     ioc.run();
 
-    auto msg = http::request<http::string_body>{fut.get()};
+    auto msg = http::request<http::string_body>(fut.get());
     REQUIRE(msg.body() == "I bestow the heads of virgins and the first-born sons.");
   }
 
@@ -71,10 +71,10 @@ TEST_CASE("async_read_body")
   {
     using body_t = http::vector_body<std::uint8_t>;
 
-    asio::io_context io{};
+    asio::io_context io;
 
-    auto stream = test::stream{io};
-    auto buf    = beast::flat_buffer{};
+    auto stream = test::stream(io);
+    auto buf    = beast::flat_buffer();
 
     constexpr
     auto const body_size = std::uint64_t{4096 * 1024};
@@ -86,7 +86,7 @@ TEST_CASE("async_read_body")
       beast::ostream(stream.buffer()) << req;
     }
 
-    auto header_parser = foxy::header_parser<>{};
+    auto header_parser = foxy::header_parser<>();
     header_parser.body_limit(body_size);
 
     http::read_header(stream, buf, header_parser);
@@ -98,7 +98,7 @@ TEST_CASE("async_read_body")
 
     io.run();
 
-    auto req = http::request<body_t>{fut.get()};
+    auto req = http::request<body_t>(fut.get());
 
     REQUIRE(req.body().size() == body_size);
   }

@@ -15,7 +15,8 @@ listener::listener(
 #include <boost/asio/yield.hpp>
 auto listener::accept(boost::system::error_code const ec) -> void
 {
-  reenter (accept_coro_) {
+  reenter (accept_coro_)
+  {
     for (;;) {
       yield acceptor_.async_accept(
         socket_,
