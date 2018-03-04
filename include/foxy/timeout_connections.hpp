@@ -22,15 +22,15 @@ auto timeout_connections(
       >,
       decltype((*begin).last_activity())
     >::value,
-    "Type traits not met for connection timeouts");
+    "Iterator dereference type must support \".last_activity(void)\" returning a time_point");
 
   auto const remover = [&duration](auto const& conn) -> bool
   {
     auto const now = std::chrono::steady_clock::now();
-
-    return (
-      conn.io_pending() &&
-      now - conn.last_activity() >= duration);
+    if (!conn.io_pending()) {
+      return false;
+    }
+    return (now - conn.last_activity() >= duration);
   };
 
   auto timed_out_begin = std::remove_if(begin, end, remover);

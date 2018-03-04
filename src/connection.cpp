@@ -1,10 +1,12 @@
 #include "foxy/connection.hpp"
+#include <chrono>
 
 namespace foxy
 {
 connection::connection(socket_type socket)
   : socket_(std::move(socket))
   , strand_(socket_.get_executor())
+  , timer_(socket_.get_executor().context())
 {
 }
 
@@ -33,14 +35,14 @@ auto connection::run(
 
   using boost::system::error_code;
 
-  reenter (*this) {
+  reenter(conn_coro_)
+  {
     yield {
       http::async_read_header(
         socket_, buffer_, parser_,
         make_stranded(
-          [self = this->shared_from_this()](
-            error_code  const ec,
-            std::size_t const bytes_transferred) -> void
+          [self = this->shared_from_this()]
+          (error_code const& ec, std::size_t const bytes_transferred) -> void
           {
             if (ec) {
               return fail(ec, "header parsing");
@@ -68,9 +70,41 @@ auto connection::run(
     //     });
     // }
 
-    socket_.shutdown(socket_type::shutdown_both);
+    close();
   }
 }
 #include <boost/asio/unyield.hpp>
+
+#include <boost/asio/yield.hpp>
+auto connection::timeout(boost::system::error_code const ec) -> void
+{
+  reenter(timer_coro_)
+  {
+    while (true) {
+      if (ec && ec != boost::asio::error::operation_aborted) {
+        return fail(ec, "connection timeout handling");
+      }
+
+      if (std::chrono::steady_clock::now() > timer_.expiry()) {
+        return close();
+      }
+
+      yield timer_.async_wait(
+        make_stranded(
+          [self = this->shared_from_this()]
+          (boost::system::error_code const& ec) -> void
+          {
+            self->timeout(ec);
+          }));
+    }
+  }
+}
+#include <boost/asio/unyield.hpp>
+
+auto connection::close(void) -> void
+{
+  socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
+  socket_.close();
+}
 
 } // foxy

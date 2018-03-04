@@ -10,6 +10,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/coroutine.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/bind_executor.hpp>
 
 #include <boost/system/error_code.hpp>
@@ -22,22 +23,26 @@
 
 namespace foxy
 {
-struct connection
-  : public boost::asio::coroutine
-  , public std::enable_shared_from_this<connection>
+struct connection : public std::enable_shared_from_this<connection>
 {
 public:
-  using socket_type = boost::asio::ip::tcp::socket;
-  using buffer_type = boost::beast::flat_buffer;
-  using strand_type =
+  using socket_type        = boost::asio::ip::tcp::socket;
+  using buffer_type        = boost::beast::flat_buffer;
+  using strand_type        =
     boost::asio::strand<boost::asio::io_context::executor_type>;
 
+  using timer_type         = boost::asio::steady_timer;
+  using coroutine_type     = boost::asio::coroutine;
   using header_parser_type = header_parser<>;
 
 private:
   socket_type socket_;
   strand_type strand_;
   buffer_type buffer_;
+  timer_type  timer_;
+
+  coroutine_type conn_coro_;
+  coroutine_type timer_coro_;
 
   header_parser_type parser_;
 
@@ -57,6 +62,10 @@ public:
   auto run(
     boost::system::error_code const  ec = {},
     std::size_t const bytes_transferred = 0) -> void;
+
+  auto timeout(boost::system::error_code const ec) -> void;
+
+  auto close(void) -> void;
 };
 
 } // foxy
