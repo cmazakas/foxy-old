@@ -28,10 +28,10 @@ auto connection::executor(void) & noexcept -> strand_type&
 #include <boost/asio/yield.hpp>
 auto connection::run(
   boost::system::error_code const ec,
-  std::size_t const bytes_transferred) -> void
+  std::size_t               const bytes_transferred) -> void
 {
-  namespace asio   = boost::asio;
-  namespace http   = boost::beast::http;
+  namespace asio = boost::asio;
+  namespace http = boost::beast::http;
 
   using boost::system::error_code;
 

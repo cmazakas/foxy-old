@@ -61,10 +61,9 @@ public:
 
   auto run(
     boost::system::error_code const  ec = {},
-    std::size_t const bytes_transferred = 0) -> void;
+    std::size_t               const bytes_transferred = 0) -> void;
 
   auto timeout(boost::system::error_code const ec) -> void;
-
   auto close(void) -> void;
 };
 

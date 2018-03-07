@@ -7,6 +7,7 @@
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/use_future.hpp>
+#include <boost/asio/steady_timer.hpp>
 
 #include <boost/beast/core/string.hpp>
 #include <boost/beast/core/ostream.hpp>
@@ -39,6 +40,7 @@ TEST_CASE("async_read_body")
 
     auto stream = test::stream(ioc);
     auto buf    = beast::flat_buffer();
+    auto timer  = asio::steady_timer(ioc);
 
     auto req = http::request<http::string_body>(http::verb::get, "/rawr", 11);
     req.body() = "I bestow the heads of virgins and the first-born sons.";
@@ -57,7 +59,7 @@ TEST_CASE("async_read_body")
     REQUIRE(target == "/rawr");
 
     auto fut = foxy::async_read_body<http::string_body>(
-      stream, buf,
+      stream, buf, timer,
       std::move(header_parser),
       asio::use_future);
 
@@ -75,12 +77,13 @@ TEST_CASE("async_read_body")
 
     auto stream = test::stream(io);
     auto buf    = beast::flat_buffer();
+    auto timer  = asio::steady_timer(io);
 
     constexpr
     auto const body_size = std::uint64_t{4096 * 1024};
 
     {
-      auto req = http::request<body_t>{http::verb::post, "/", 11};
+      auto req = http::request<body_t>(http::verb::post, "/", 11);
       req.body() = std::vector<std::uint8_t>(body_size, 137);
       req.prepare_payload();
       beast::ostream(stream.buffer()) << req;
@@ -92,7 +95,7 @@ TEST_CASE("async_read_body")
     http::read_header(stream, buf, header_parser);
 
     auto fut = foxy::async_read_body<body_t>(
-    stream, buf,
+    stream, buf, timer,
     std::move(header_parser),
     asio::use_future);
 

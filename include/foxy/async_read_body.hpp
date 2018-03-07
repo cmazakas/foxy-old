@@ -29,6 +29,7 @@ namespace detail
 template <
   typename AsyncReadStream,
   typename DynamicBuffer,
+  typename SteadyTimer,
   typename Allocator,
   typename Body,
   typename Handler
@@ -43,13 +44,11 @@ public:
     boost::beast::http::request_parser<Body, Allocator>;
 
 private:
-  struct state;
-  boost::beast::handler_ptr<state, Handler> p_;
-
   struct state
   {
     AsyncReadStream&   stream;
     DynamicBuffer&     buffer;
+    SteadyTimer&       timer;
     output_parser_type parser;
 
     state(void)         = delete;
@@ -60,16 +59,21 @@ private:
       Handler&,
       AsyncReadStream&    stream_,
       DynamicBuffer&      buffer_,
+      SteadyTimer&        timer_,
       input_parser_type&& parser_)
     : stream(stream_)
     , buffer(buffer_)
+    , timer(timer_)
     , parser(std::move(parser_))
     {
     }
   };
 
+  boost::beast::handler_ptr<state, Handler> p_;
+
 public:
   read_body_op(void)                = delete;
+
   read_body_op(read_body_op&&)      = default;
   read_body_op(read_body_op const&) = default;
 
@@ -78,11 +82,13 @@ public:
     DeducedHandler&&    handler,
     AsyncReadStream&    stream,
     DynamicBuffer&      buffer,
+    SteadyTimer&        timer,
     input_parser_type&& parser)
   : p_(
     std::forward<DeducedHandler>(handler),
     stream,
     buffer,
+    timer,
     std::move(parser))
   {
   }
@@ -116,8 +122,8 @@ public:
   // main coroutine of async operation
   //
   auto operator()(
-    boost::system::error_code const ec  = {},
-    std::size_t const bytes_transferred = 0
+    boost::system::error_code const ec                = {},
+    std::size_t               const bytes_transferred = 0
   ) -> void
   {
     namespace asio = boost::asio;
@@ -167,12 +173,14 @@ template <
   typename Body,
   typename AsyncReadStream,
   typename DynamicBuffer,
+  typename SteadyTimer,
   typename Allocator,
   typename MessageHandler
 >
 auto async_read_body(
   AsyncReadStream&                 stream,
   DynamicBuffer&                   buffer,
+  SteadyTimer&                     timer,
   foxy::header_parser<Allocator>&& parser,
   MessageHandler&&                 handler
 ) -> BOOST_ASIO_INITFN_RESULT_TYPE(MessageHandler,
@@ -197,6 +205,7 @@ auto async_read_body(
   using read_body_op_type = detail::read_body_op<
     AsyncReadStream,
     DynamicBuffer,
+    SteadyTimer,
     Allocator,
     Body,
     BOOST_ASIO_HANDLER_TYPE(MessageHandler, handler_type)
@@ -211,6 +220,7 @@ auto async_read_body(
     init.completion_handler,
     stream,
     buffer,
+    timer,
     std::move(parser)
   )();
 
