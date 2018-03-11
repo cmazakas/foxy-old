@@ -1,6 +1,7 @@
 #ifndef FOXY_ASYNC_READ_BODY_HPP_
 #define FOXY_ASYNC_READ_BODY_HPP_
 
+#include <chrono>
 #include <utility>
 #include <type_traits>
 
@@ -136,8 +137,11 @@ public:
     {
       while (!p.parser.is_done()) {
         if (ec) {
-          return fail(ec, "parsing message body");
+          return p_.invoke(
+            ec, http::request<Body, http::basic_fields<Allocator>>());
         }
+
+        p.timer.expires_after(std::chrono::seconds(30));
 
         yield http::async_read_some(
           p.stream, p.buffer, p.parser, std::move(*this));
@@ -150,7 +154,8 @@ public:
       }
 
       if (ec && ec != http::error::end_of_stream) {
-        return fail(ec, "parsing message body");
+        return p_.invoke(
+          ec, http::request<Body, http::basic_fields<Allocator>>());
       }
 
       auto msg = p.parser.release();
@@ -167,7 +172,7 @@ public:
  * Asynchronously read a request body given a complete
  * `foxy::header_parser` object. The supplied message handler
  * must be invokable with the following signature:
- * void(error_code, http::request<Body, basic_fields<Allocator>>&&)
+ * void(error_code, http::request<Body, basic_fields<Allocator>>)
  */
 template <
   typename Body,
@@ -183,13 +188,13 @@ auto async_read_body(
   SteadyTimer&                     timer,
   foxy::header_parser<Allocator>&& parser,
   MessageHandler&&                 handler
-) -> BOOST_ASIO_INITFN_RESULT_TYPE(MessageHandler,
+) -> BOOST_ASIO_INITFN_RESULT_TYPE(
+  MessageHandler,
   void(
     boost::system::error_code,
     boost::beast::http::request<
       Body,
-      boost::beast::http::basic_fields<Allocator>
-    >&&))
+      boost::beast::http::basic_fields<Allocator>>))
 {
   static_assert(
     is_body_v<Body> &&
@@ -200,7 +205,7 @@ auto async_read_body(
   using handler_type =
     void(
       boost::system::error_code ec,
-      http::request<Body, http::basic_fields<Allocator>>&&);
+      http::request<Body, http::basic_fields<Allocator>>);
 
   using read_body_op_type = detail::read_body_op<
     AsyncReadStream,

@@ -34,6 +34,8 @@ TEST_CASE("async_read_body")
   namespace http  = boost::beast::http;
   namespace test  = boost::beast::test;
 
+  using boost::system::error_code;
+
   SECTION("should do as advertised")
   {
     asio::io_context ioc;
@@ -95,14 +97,50 @@ TEST_CASE("async_read_body")
     http::read_header(stream, buf, header_parser);
 
     auto fut = foxy::async_read_body<body_t>(
-    stream, buf, timer,
-    std::move(header_parser),
-    asio::use_future);
+      stream, buf, timer,
+      std::move(header_parser),
+      asio::use_future);
 
     io.run();
 
     auto req = http::request<body_t>(fut.get());
 
     REQUIRE(req.body().size() == body_size);
+  }
+
+  SECTION("should handle stream interruptions")
+  {
+    using body_t = http::vector_body<std::uint8_t>;
+
+    asio::io_context io;
+
+    // fail after 300 reads
+    auto stream = test::stream(io, test::fail_counter(300));
+    auto buf    = beast::flat_buffer();
+    auto timer  = asio::steady_timer(io);
+
+    constexpr
+    auto const body_size = std::uint64_t{4096 * 1024};
+
+    {
+      auto req = http::request<body_t>(http::verb::post, "/", 11);
+      req.body() = std::vector<std::uint8_t>(body_size, 137);
+      req.prepare_payload();
+      beast::ostream(stream.buffer()) << req;
+    }
+
+    auto header_parser = foxy::header_parser<>();
+    header_parser.body_limit(body_size);
+
+    http::read_header(stream, buf, header_parser);
+
+    auto fut = foxy::async_read_body<body_t>(
+      stream, buf, timer,
+      std::move(header_parser),
+      asio::use_future);
+
+    io.run();
+
+    REQUIRE_THROWS(fut.get());
   }
 }
