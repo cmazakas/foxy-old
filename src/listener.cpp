@@ -1,6 +1,7 @@
 #include "foxy/listener.hpp"
 
 #include <utility>
+#include <chrono>
 #include <boost/asio/bind_executor.hpp>
 
 #include "foxy/log.hpp"
@@ -19,7 +20,7 @@ listener::listener(
 #include <boost/asio/yield.hpp>
 auto listener::accept(boost::system::error_code const ec) -> void
 {
-  reenter (accept_coro_)
+  reenter(accept_coro_)
   {
     for (;;) {
       yield acceptor_.async_accept(
@@ -31,10 +32,14 @@ auto listener::accept(boost::system::error_code const ec) -> void
         });
 
       if (ec) {
-        return fail(ec, "accepting new connection");
+        fail(ec, "accepting new connection");
+        continue;
       }
 
-      std::make_shared<connection>(std::move(socket_))->run();
+      auto conn = std::make_shared<connection>(std::move(socket_));
+      conn->run();
+      conn->timer().expires_after(std::chrono::seconds(30));
+      conn->timeout();
     }
   }
 }

@@ -58,12 +58,13 @@ public:
   auto socket(void)   & noexcept -> socket_type&;
   auto buffer(void)   & noexcept -> buffer_type&;
   auto executor(void) & noexcept -> strand_type&;
+  auto timer(void)    & noexcept -> timer_type&;
 
   auto run(
     boost::system::error_code const  ec = {},
     std::size_t               const bytes_transferred = 0) -> void;
 
-  auto timeout(boost::system::error_code const ec) -> void;
+  auto timeout(boost::system::error_code const ec = {}) -> void;
   auto close(void) -> void;
 };
 

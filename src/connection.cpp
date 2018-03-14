@@ -25,6 +25,11 @@ auto connection::executor(void) & noexcept -> strand_type&
   return strand_;
 }
 
+auto connection::timer(void) & noexcept -> timer_type&
+{
+  return timer_;
+}
+
 #include <boost/asio/yield.hpp>
 auto connection::run(
   boost::system::error_code const ec,
@@ -37,19 +42,17 @@ auto connection::run(
 
   reenter(conn_coro_)
   {
-    yield {
-      http::async_read_header(
-        socket_, buffer_, parser_,
-        make_stranded(
-          [self = this->shared_from_this()]
-          (error_code const& ec, std::size_t const bytes_transferred) -> void
-          {
-            if (ec) {
-              return fail(ec, "header parsing");
-            }
-            self->run({}, bytes_transferred);
-          }));
-    }
+    yield http::async_read_header(
+      socket_, buffer_, parser_,
+      make_stranded(
+        [self = this->shared_from_this()]
+        (error_code const& ec, std::size_t const bytes_transferred) -> void
+        {
+          if (ec) {
+            return fail(ec, "header parsing");
+          }
+          self->run({}, bytes_transferred);
+        }));
 
     // yield {
     //   auto found_match = false;
