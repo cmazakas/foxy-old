@@ -37,6 +37,7 @@ auto listener::accept(boost::system::error_code const ec) -> void
       }
 
       auto conn = std::make_shared<connection>(std::move(socket_));
+      conn->on_request(this->handler_);
       conn->run();
       conn->timer().expires_after(std::chrono::seconds(30));
       conn->timeout();

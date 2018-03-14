@@ -54,24 +54,15 @@ auto connection::run(
           self->run({}, bytes_transferred);
         }));
 
-    // yield {
-    //   auto found_match = false;
-
-    //   fusion::for_each(
-    //     routes_,
-    //     [=, &found_match](auto const& route) -> void
-    //     {
-    //       if (found_match) { return; }
-
-    //       using rule_type = decltype(route.rule);
-    //       using sig_type  = typename rule_type::sig_type;
-    //       using synth_attr_type = ct::return_type_t<sig_type>;
-
-    //       if (parse_attrs_into_handler<synth_attr_type>(route)) {
-    //         found_match = true;
-    //       }
-    //     });
-    // }
+    if (handler_) {
+      yield asio::post(
+        make_stranded(
+          [self = this->shared_from_this()]
+          (void) -> void
+          {
+            self->handler_({}, self->parser_, self->shared_from_this());
+          }));
+    }
 
     close();
   }

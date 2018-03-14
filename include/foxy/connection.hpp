@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <utility>
 #include <iostream>
+#include <functional>
 
 #include <boost/asio/strand.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -35,6 +36,13 @@ public:
   using coroutine_type     = boost::asio::coroutine;
   using header_parser_type = header_parser<>;
 
+  using handler_type =
+    std::function<
+      void(
+        boost::system::error_code const,
+        header_parser_type&,
+        std::shared_ptr<connection>)>;
+
 private:
   socket_type socket_;
   strand_type strand_;
@@ -45,6 +53,8 @@ private:
   coroutine_type timer_coro_;
 
   header_parser_type parser_;
+
+  handler_type handler_;
 
   template <typename F>
   auto make_stranded(F&& f)
@@ -66,6 +76,12 @@ public:
 
   auto timeout(boost::system::error_code const ec = {}) -> void;
   auto close(void) -> void;
+
+  template <typename Callback>
+  auto on_request(Callback& cb) -> void
+  {
+    handler_ = std::ref(cb);
+  }
 };
 
 } // foxy
