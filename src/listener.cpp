@@ -2,7 +2,9 @@
 
 #include <utility>
 #include <chrono>
-#include <boost/asio/bind_executor.hpp>
+
+#include <boost/asio/post.hpp>
+#include <boost/asio/associated_executor.hpp>
 
 #include "foxy/log.hpp"
 
@@ -38,9 +40,13 @@ auto listener::accept(boost::system::error_code const ec) -> void
 
       auto conn = std::make_shared<connection>(std::move(socket_));
       conn->on_request(this->handler_);
-      conn->run();
-      conn->timer().expires_after(std::chrono::seconds(30));
-      conn->timeout();
+
+      auto const cb = [conn](void) -> void
+      {
+        conn->run();
+      };
+
+      conn->executor().post(cb, boost::asio::get_associated_allocator(cb));
     }
   }
 }

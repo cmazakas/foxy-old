@@ -42,6 +42,9 @@ auto connection::run(
 
   reenter(conn_coro_)
   {
+    timer_.expires_after(std::chrono::seconds(30));
+    timeout();
+
     yield http::async_read_header(
       socket_, buffer_, parser_,
       make_stranded(
@@ -54,17 +57,15 @@ auto connection::run(
           self->run({}, bytes_transferred);
         }));
 
-    if (handler_) {
-      yield asio::post(
-        make_stranded(
-          [self = this->shared_from_this()]
-          (void) -> void
-          {
-            self->handler_({}, self->parser_, self->shared_from_this());
-          }));
+    if (ec) {
+      if (handler_) {
+        return handler_(ec, parser_, shared_from_this());
+      } else {
+        return fail(ec, "connection: reading header");
+      }
     }
 
-    close();
+    handler_({}, parser_, shared_from_this());
   }
 }
 #include <boost/asio/unyield.hpp>

@@ -22,6 +22,7 @@
 
 #include "foxy/route.hpp"
 #include "foxy/listener.hpp"
+#include "foxy/header_parser.hpp"
 
 #include <catch.hpp>
 
@@ -38,34 +39,35 @@ TEST_CASE("Our listener type")
 {
   SECTION("should at least compile")
   {
-    asio::io_context ioc{};
+    asio::io_context io;
 
-    auto const addr = std::string{"127.0.0.1"};
+    auto const addr = std::string("127.0.0.1");
     auto const port = static_cast<unsigned short>(1337);
 
-    auto const int_rule  = qi::rule<char const*>{"/" >> qi::int_};
-    auto const name_rule = qi::rule<char const*, std::string()>{"/" >> +qi::alpha};
+    auto const int_rule  = qi::rule<char const*>("/" >> qi::int_);
+    auto const name_rule = qi::rule<char const*, std::string()>("/" >> +qi::alpha);
 
     auto const int_handler =
       [](
-        error_code const ec,
-        http::request_parser<http::empty_body>& parser,
-        auto conn) -> void
+        error_code const                  ec,
+        foxy::header_parser<>&            parser,
+        std::shared_ptr<foxy::connection> conn
+      ) -> void
       {
         using body_type = http::string_body;
 
-        auto str_parser = http::request_parser<body_type>{std::move(parser)};
-        http::read(conn->get_socket(), conn->get_buffer(), str_parser);
+        auto str_parser = http::request_parser<body_type>(std::move(parser));
+        http::read(conn->socket(), conn->buffer(), str_parser);
 
-        auto req = http::request<body_type>{str_parser.release()};
+        auto req = str_parser.release();
 
-        auto res = http::response<http::string_body>{http::status::ok, 11};
+        auto res = http::response<http::string_body>(http::status::ok, 11);
         res.body() =
           "Received the following content: " + req.body();
 
         res.prepare_payload();
 
-        http::write(conn->get_socket(), res);
+        http::write(conn->socket(), res);
         conn->run(ec);
       };
 
