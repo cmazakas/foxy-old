@@ -115,7 +115,8 @@ TEST_CASE("async_read_body")
     asio::io_context io;
 
     // fail after 300 reads
-    auto stream = test::stream(io, test::fail_counter(300));
+    auto fc     = test::fail_counter(300);
+    auto stream = test::stream(io, fc);
     auto buf    = beast::flat_buffer();
     auto timer  = asio::steady_timer(io);
 
