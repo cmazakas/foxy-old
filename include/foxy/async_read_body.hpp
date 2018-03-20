@@ -136,7 +136,9 @@ public:
     reenter(*this)
     {
       while (!p.parser.is_done()) {
+        std::cout << "bytes transferred: " << bytes_transferred << '\n';
         if (ec) {
+          std::cout << ec.message() << '\n';
           return p_.invoke(
             ec, http::request<Body, http::basic_fields<Allocator>>());
         }
