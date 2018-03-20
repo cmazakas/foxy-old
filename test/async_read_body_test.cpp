@@ -52,7 +52,7 @@ TEST_CASE("async_read_body")
 
     beast::ostream(stream.buffer()) << req;
 
-    auto header_parser = foxy::header_parser<>();
+    foxy::header_parser<> header_parser;
 
     auto const bytes_read = http::read_header(stream, buf, header_parser);
     REQUIRE(bytes_read > 0);
@@ -91,7 +91,7 @@ TEST_CASE("async_read_body")
       beast::ostream(stream.buffer()) << req;
     }
 
-    auto header_parser = foxy::header_parser<>();
+    foxy::header_parser<> header_parser;
     header_parser.body_limit(body_size);
 
     http::read_header(stream, buf, header_parser);
@@ -130,7 +130,7 @@ TEST_CASE("async_read_body")
       beast::ostream(stream.buffer()) << req;
     }
 
-    auto header_parser = foxy::header_parser<>();
+    foxy::header_parser<> header_parser;
     header_parser.body_limit(body_size);
 
     http::read_header(stream, buf, header_parser);

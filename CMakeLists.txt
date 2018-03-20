@@ -2,11 +2,11 @@ cmake_minimum_required(VERSION 3.9)
 
 project(foxy)
 
-find_path(CATCH_INCLUDE_DIR catch.hpp)
+find_path(CATCH_INCLUDE_DIR "catch.hpp" "/vcpkg/installed/x64-windows/include")
 add_library(Catch INTERFACE)
 target_include_directories(Catch INTERFACE ${CATCH_INCLUDE_DIR})
 
-find_package(Boost 1.66 REQUIRED COMPONENTS system coroutine)
+find_package(Boost 1.67 REQUIRED COMPONENTS system coroutine)
 
 add_library(
   foxy_core
@@ -46,6 +46,7 @@ target_link_libraries(
   PUBLIC
   ${Boost_COROUTINE_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
+  Boost::disable_autolinking
 )
 
 add_library(test_utils INTERFACE)
@@ -56,14 +57,14 @@ add_executable(
 
   ${CMAKE_CURRENT_SOURCE_DIR}/test/main.cpp
   # ${CMAKE_CURRENT_SOURCE_DIR}/test/server_test.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/test/async_read_body_test.cpp
+  # ${CMAKE_CURRENT_SOURCE_DIR}/test/async_read_body_test.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/mp11_test.cpp
   #${CMAKE_CURRENT_SOURCE_DIR}/test/listener_test.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/timeout_test.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/route_test.cpp
 )
 
-target_link_libraries(foxy_tests foxy_core test_utils)
+target_link_libraries(foxy_tests PUBLIC foxy_core test_utils Catch)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake.modules/")
 enable_testing()
