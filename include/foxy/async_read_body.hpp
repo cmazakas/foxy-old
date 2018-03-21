@@ -148,6 +148,8 @@ public:
         yield http::async_read_some(
           p.stream, p.buffer, p.parser, std::move(*this));
 
+        std::cout << "read some\n";
+
         // At this resume point, we don't check for any errors as:
         // > The octets should be removed by calling consume on the dynamic
         // > buffer after the read completes, regardless of any error.

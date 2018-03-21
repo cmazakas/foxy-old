@@ -46,8 +46,11 @@ target_link_libraries(
   PUBLIC
   ${Boost_COROUTINE_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
-  Boost::disable_autolinking
 )
+
+if (MSVC)
+  target_link_libraries(foxy_core PUBLIC Boost::disable_autolinking)
+endif()
 
 add_library(test_utils INTERFACE)
 target_include_directories(test_utils INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/test/include)

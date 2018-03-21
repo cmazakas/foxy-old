@@ -15,13 +15,11 @@
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/string.hpp>
 #include <boost/beast/core/type_traits.hpp>
-#include <boost/beast/core/error.hpp>
 #include <boost/beast/websocket/teardown.hpp>
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
-#include <boost/throw_exception.hpp>
 #include <boost/assert.hpp>
 #include <boost/optional.hpp>
 #include <boost/throw_exception.hpp>
@@ -31,157 +29,13 @@
 #include <mutex>
 #include <utility>
 
+// ripped from Beast, currently re-aliased under a foxy directory
+// eventually deprecate once Beast exports its testing utils
+#include "foxy/test/fail_counter.hpp"
+
 namespace boost {
 namespace beast {
 namespace test {
-
-enum class error
-{
-    fail_error = 1
-};
-
-namespace detail {
-
-class fail_error_category : public boost::system::error_category
-{
-public:
-    const char*
-    name() const noexcept override
-    {
-        return "test";
-    }
-
-    std::string
-    message(int ev) const override
-    {
-        switch(static_cast<error>(ev))
-        {
-        default:
-        case error::fail_error:
-            return "test error";
-        }
-    }
-
-    boost::system::error_condition
-    default_error_condition(int ev) const noexcept override
-    {
-        return boost::system::error_condition{ev, *this};
-    }
-
-    bool
-    equivalent(int ev,
-        boost::system::error_condition const& condition
-            ) const noexcept override
-    {
-        return condition.value() == ev &&
-            &condition.category() == this;
-    }
-
-    bool
-    equivalent(error_code const& error, int ev) const noexcept override
-    {
-        return error.value() == ev &&
-            &error.category() == this;
-    }
-};
-
-inline
-boost::system::error_category const&
-get_error_category()
-{
-    static fail_error_category const cat{};
-    return cat;
-}
-
-} // detail
-
-inline
-error_code
-make_error_code(error ev)
-{
-    return error_code{
-        static_cast<std::underlying_type<error>::type>(ev),
-            detail::get_error_category()};
-}
-
-/** An error code with an error set on default construction
-
-    Default constructed versions of this object will have
-    an error code set right away. This helps tests find code
-    which forgets to clear the error code on success.
-*/
-struct fail_error_code : error_code
-{
-    fail_error_code()
-        : error_code(make_error_code(error::fail_error))
-    {
-    }
-
-    template<class Arg0, class... ArgN>
-    fail_error_code(Arg0&& arg0, ArgN&&... argn)
-        : error_code(arg0, std::forward<ArgN>(argn)...)
-    {
-    }
-};
-
-/** A countdown to simulated failure.
-
-    On the Nth operation, the class will fail with the specified
-    error code, or the default error code of @ref error::fail_error.
-*/
-class fail_counter
-{
-    std::size_t n_;
-    std::size_t i_ = 0;
-    error_code ec_;
-
-public:
-    fail_counter(fail_counter&&) = default;
-
-    /** Construct a counter.
-
-        @param The 0-based index of the operation to fail on or after.
-    */
-    explicit
-    fail_counter(std::size_t n,
-            error_code ev = make_error_code(error::fail_error))
-        : n_(n)
-        , ec_(ev)
-    {
-    }
-
-    /// Returns the fail index
-    std::size_t
-    count() const
-    {
-        return n_;
-    }
-
-    /// Throw an exception on the Nth failure
-    void
-    fail()
-    {
-        if(i_ < n_)
-            ++i_;
-        if(i_ == n_)
-            BOOST_THROW_EXCEPTION(system_error{ec_});
-    }
-
-    /// Set an error code on the Nth failure
-    bool
-    fail(error_code& ec)
-    {
-        if(i_ < n_)
-            ++i_;
-        if(i_ == n_)
-        {
-            ec = ec_;
-            return true;
-        }
-        ec.assign(0, ec.category());
-        return false;
-    }
-};
 
 /** A bidirectional in-memory communication channel
 
@@ -581,9 +435,13 @@ read_some(MutableBufferSequence const& buffers,
         "MutableBufferSequence requirements not met");
     using boost::asio::buffer_copy;
     using boost::asio::buffer_size;
-    BOOST_ASSERT(buffer_size(buffers) > 0);
     if(in_->fc && in_->fc->fail(ec))
         return 0;
+    if(buffer_size(buffers) == 0)
+    {
+        ec.clear();
+        return 0;
+    }
     std::unique_lock<std::mutex> lock{in_->m};
     BOOST_ASSERT(! in_->op);
     in_->cv.wait(lock,
@@ -627,9 +485,8 @@ async_read_some(
         "MutableBufferSequence requirements not met");
     using boost::asio::buffer_copy;
     using boost::asio::buffer_size;
-    BOOST_ASSERT(buffer_size(buffers) > 0);
-    boost::asio::async_completion<ReadHandler,
-        void(error_code, std::size_t)> init{handler};
+    BOOST_BEAST_HANDLER_INIT(
+        ReadHandler, void(error_code, std::size_t));
     if(in_->fc)
     {
         error_code ec;
@@ -747,8 +604,8 @@ async_write_some(ConstBufferSequence const& buffers,
         "ConstBufferSequence requirements not met");
     using boost::asio::buffer_copy;
     using boost::asio::buffer_size;
-    boost::asio::async_completion<WriteHandler,
-        void(error_code, std::size_t)> init{handler};
+    BOOST_BEAST_HANDLER_INIT(
+        WriteHandler, void(error_code, std::size_t));
     auto out = out_.lock();
     if(! out)
         return boost::asio::post(
@@ -951,16 +808,6 @@ connect(stream& to, Arg1&& arg1, ArgN&&... argn)
 
 } // test
 } // beast
-} // boost
-
-namespace boost {
-namespace system {
-template<>
-struct is_error_code_enum<beast::test::error>
-{
-    static bool const value = true;
-};
-} // system
 } // boost
 
 #endif
