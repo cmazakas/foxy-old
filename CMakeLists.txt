@@ -2,11 +2,11 @@ cmake_minimum_required(VERSION 3.9)
 
 project(foxy)
 
-find_path(CATCH_INCLUDE_DIR "catch.hpp" "/vcpkg/installed/x64-windows/include")
+find_path(CATCH_INCLUDE_DIR "catch.hpp")
 add_library(Catch INTERFACE)
 target_include_directories(Catch INTERFACE ${CATCH_INCLUDE_DIR})
 
-find_package(Boost 1.67 REQUIRED COMPONENTS system coroutine)
+find_package(Boost 1.66 REQUIRED COMPONENTS system coroutine)
 
 add_library(
   foxy_core
@@ -48,9 +48,10 @@ target_link_libraries(
   ${Boost_SYSTEM_LIBRARY}
 )
 
-if (MSVC)
-  target_link_libraries(foxy_core PUBLIC Boost::disable_autolinking)
-endif()
+# keep this around, just in case
+# if (MSVC)
+#   target_link_libraries(foxy_core PUBLIC Boost::disable_autolinking)
+# endif()
 
 add_library(test_utils INTERFACE)
 target_include_directories(test_utils INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/test/include)
@@ -60,7 +61,7 @@ add_executable(
 
   ${CMAKE_CURRENT_SOURCE_DIR}/test/main.cpp
   # ${CMAKE_CURRENT_SOURCE_DIR}/test/server_test.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/test/async_read_body_test.cpp
+  # ${CMAKE_CURRENT_SOURCE_DIR}/test/async_read_body_test.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/mp11_test.cpp
   #${CMAKE_CURRENT_SOURCE_DIR}/test/listener_test.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/timeout_test.cpp

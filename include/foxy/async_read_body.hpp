@@ -136,9 +136,7 @@ public:
     reenter(*this)
     {
       while (!p.parser.is_done()) {
-        std::cout << "bytes transferred: " << bytes_transferred << '\n';
         if (ec) {
-          std::cout << ec.message() << '\n';
           return p_.invoke(
             ec, http::request<Body, http::basic_fields<Allocator>>());
         }
@@ -147,8 +145,6 @@ public:
 
         yield http::async_read_some(
           p.stream, p.buffer, p.parser, std::move(*this));
-
-        std::cout << "read some\n";
 
         // At this resume point, we don't check for any errors as:
         // > The octets should be removed by calling consume on the dynamic
