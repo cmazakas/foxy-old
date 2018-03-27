@@ -60,7 +60,6 @@ target_link_libraries(
   PUBLIC
   ${Boost_COROUTINE_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
-  ${Boost_CONTEXT_LIBRARY}
 )
 
 # keep this around, just in case
@@ -83,7 +82,15 @@ add_executable(
   ${CMAKE_CURRENT_SOURCE_DIR}/test/route_test.cpp
 )
 
-target_link_libraries(foxy_tests foxy_core test_utils Catch)
+target_link_libraries(
+  foxy_tests
+
+  PRIVATE
+  foxy_core
+  test_utils
+  Catch
+  ${Boost_CONTEXT_LIBRARY}
+)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake.modules/")
 enable_testing()

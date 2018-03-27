@@ -135,6 +135,16 @@ public:
     auto& p = *p_;
     reenter(*this)
     {
+      // It's important that the handler be invoked from
+      // within the executor associated with the async operation
+      // Example: associated executor is a strand
+      // If parser is done, we don't have the guarantee of running
+      // the handler on the associated executor
+      // Posting re-entrancy guarantees correct behavior and enforces
+      // Asio invariants about composed operations
+      //
+      yield asio::post(std::move(*this));
+
       while (!p.parser.is_done()) {
         if (ec) {
           return p_.invoke(
@@ -173,6 +183,11 @@ public:
  * `foxy::header_parser` object. The supplied message handler
  * must be invokable with the following signature:
  * void(error_code, http::request<Body, basic_fields<Allocator>>)
+ *
+ * Regardless of whether the asynchronous operation completes immediately or
+ * not, the handler will not be invoked from within this function. Invocation
+ * of the handler will be performed in a manner equivalent to using
+ * boost::asio::io_context::post.
  */
 template <
   typename Body,
@@ -198,7 +213,8 @@ auto async_read_body(
 {
   static_assert(
     is_body_v<Body> &&
-    is_async_read_stream_v<AsyncReadStream>, "Type traits not met");
+    is_async_read_stream_v<AsyncReadStream>,
+    "Type traits for foxy::async_read_body not met");
 
   namespace http = boost::beast::http;
 
