@@ -9,7 +9,6 @@
 
 #include <boost/asio/coroutine.hpp>
 #include <boost/asio/async_result.hpp>
-#include <boost/asio/bind_executor.hpp>
 #include <boost/asio/associated_executor.hpp>
 #include <boost/asio/associated_allocator.hpp>
 
@@ -74,7 +73,6 @@ private:
 
 public:
   read_body_op(void)                = delete;
-
   read_body_op(read_body_op&&)      = default;
   read_body_op(read_body_op const&) = default;
 

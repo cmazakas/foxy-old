@@ -24,5 +24,9 @@ TEST_CASE("Our router")
         {
           was_called = true;
         }));
+
+    auto const* target = "/";
+
+
   }
 }

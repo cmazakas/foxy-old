@@ -9,6 +9,7 @@
 #include <boost/fusion/algorithm/iteration/fold.hpp>
 
 #include <boost/spirit/include/qi_rule.hpp>
+#include <boost/spirit/include/qi_parse.hpp>
 
 namespace foxy
 {
@@ -47,11 +48,16 @@ auto match_route(
   boost::string_view const  sv,
   Routes             const& routes) -> bool
 {
+  namespace qi = boost::asio::spirit::qi;
+
   return boost::fusion::fold(
     routes, false,
-    [](auto const& route, bool const found_match) -> bool
+    [sv](auto const& route, bool const found_match) -> bool
     {
-      return false;
+      if (found_match) { return found_match; }
+      if (qi::parse(sv.begin(), sv.end(), route)) {
+        route.handler();
+      }
     });
 }
 }

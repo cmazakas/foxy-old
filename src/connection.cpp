@@ -1,4 +1,6 @@
 #include "foxy/connection.hpp"
+
+#include <boost/asio/post.hpp>
 #include <chrono>
 
 namespace foxy
@@ -42,6 +44,14 @@ auto connection::run(
 
   reenter(conn_coro_)
   {
+    yield asio::post(
+      make_stranded(
+        [self = this->shared_from_this()]
+        (void) -> void
+        {
+          self->run({}, 0);
+        }));
+
     timer_.expires_after(std::chrono::seconds(30));
     timeout();
 
