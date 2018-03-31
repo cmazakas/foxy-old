@@ -57,7 +57,7 @@ auto connection::run(
     yield asio::post(
       make_stranded(
         [self = this->shared_from_this()]
-        (void) -> void { self->run({}, 0); }));
+        (void) -> void { self->run(); }));
 
     timer_.expires_after(std::chrono::seconds(30));
     timeout();
@@ -88,7 +88,6 @@ auto connection::timeout(boost::system::error_code const ec) -> void
 
       if (std::chrono::steady_clock::now() > timer_.expiry()) {
         close();
-        is_closed_ = true;
         return handler_(
           boost::asio::error::basic_errors::timed_out,
           parser_,
@@ -111,6 +110,7 @@ auto connection::close(void) -> void
 {
   socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
   socket_.close();
+  is_closed_ = true;
 }
 
 } // foxy
