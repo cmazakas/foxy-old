@@ -56,32 +56,40 @@ private:
 
   handler_type handler_;
 
+  bool is_closed_;
+
   template <typename F>
   auto make_stranded(F&& f)
   {
     return boost::asio::bind_executor(strand_, std::forward<F>(f));
   }
 
-public:
-  connection(socket_type socket);
+  auto timeout(boost::system::error_code const ec = {}) -> void;
 
+public:
+  template <typename Callback>
+  connection(socket_type socket, Callback& cb)
+    : socket_(std::move(socket))
+    , strand_(socket_.get_executor())
+    , timer_(socket_.get_executor().context())
+    , handler_(std::ref(cb))
+    , is_closed_(false)
+  {
+  }
+
+  // expose everything but the parser
+  // or anything else an end-user may find useful
+  //
   auto socket(void)   & noexcept -> socket_type&;
   auto buffer(void)   & noexcept -> buffer_type&;
   auto executor(void) & noexcept -> strand_type&;
   auto timer(void)    & noexcept -> timer_type&;
 
   auto run(
-    boost::system::error_code const  ec = {},
+    boost::system::error_code const ec                = {},
     std::size_t               const bytes_transferred = 0) -> void;
 
-  auto timeout(boost::system::error_code const ec = {}) -> void;
   auto close(void) -> void;
-
-  template <typename Callback>
-  auto on_request(Callback& cb) -> void
-  {
-    handler_ = std::ref(cb);
-  }
 };
 
 } // foxy

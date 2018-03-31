@@ -11,14 +11,6 @@
 namespace foxy
 {
 
-listener::listener(
-  boost::asio::io_context&              io,
-  boost::asio::ip::tcp::endpoint const& endpoint)
-: acceptor_(io, endpoint)
-, socket_(io)
-{
-}
-
 #include <boost/asio/yield.hpp>
 auto listener::accept(boost::system::error_code const ec) -> void
 {
@@ -38,15 +30,8 @@ auto listener::accept(boost::system::error_code const ec) -> void
         continue;
       }
 
-      auto conn = std::make_shared<connection>(std::move(socket_));
-      conn->on_request(this->handler_);
-
-      auto const cb = [conn](void) -> void
-      {
-        conn->run();
-      };
-
-      conn->executor().post(cb, boost::asio::get_associated_allocator(cb));
+      std::make_shared<connection>(
+        std::move(socket_), handler_)->run();
     }
   }
 }

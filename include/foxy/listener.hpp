@@ -36,17 +36,19 @@ private:
   handler_type handler_;
 
 public:
-  listener(
-    boost::asio::io_context&              io,
-    boost::asio::ip::tcp::endpoint const& endpoint);
-
-  auto accept(boost::system::error_code const ec = {}) -> void;
 
   template <typename Callback>
-  auto on_request(Callback&& cb) -> void
+  listener(
+    boost::asio::io_context&              io,
+    boost::asio::ip::tcp::endpoint const& endpoint,
+    Callback&&                            cb)
+  : acceptor_(io, endpoint)
+  , socket_(io)
+  , handler_(std::forward<Callback>(cb))
   {
-    handler_ = std::forward<Callback>(cb);
   }
+
+  auto accept(boost::system::error_code const ec = {}) -> void;
 };
 
 } // foxy

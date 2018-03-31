@@ -1,16 +1,11 @@
 #include "foxy/connection.hpp"
 
+#include <boost/asio/error.hpp>
 #include <boost/asio/post.hpp>
 #include <chrono>
 
 namespace foxy
 {
-connection::connection(socket_type socket)
-  : socket_(std::move(socket))
-  , strand_(socket_.get_executor())
-  , timer_(socket_.get_executor().context())
-{
-}
 
 auto connection::socket(void) & noexcept -> socket_type&
 {
@@ -42,15 +37,27 @@ auto connection::run(
 
   using boost::system::error_code;
 
+  // ideally, this is only true in the case when socket.close()
+  // is called by the timeout routine
+  // we execute this branch unconditionally and before re-entering
+  // the main coroutine
+  // this is to help mitigate errors in the timeout routine that may
+  // lead to double invocations of the user's handler
+  //
+  if (ec == boost::asio::error::operation_aborted || is_closed_) {
+    return;
+  }
+
   reenter(conn_coro_)
   {
+    // we elect to immediately begin execution upon the strand
+    // this makes it easier to use the connection in the correct
+    // way, considering that we active the timer as well
+    //
     yield asio::post(
       make_stranded(
         [self = this->shared_from_this()]
-        (void) -> void
-        {
-          self->run({}, 0);
-        }));
+        (void) -> void { self->run({}, 0); }));
 
     timer_.expires_after(std::chrono::seconds(30));
     timeout();
@@ -61,21 +68,10 @@ auto connection::run(
         [self = this->shared_from_this()]
         (error_code const& ec, std::size_t const bytes_transferred) -> void
         {
-          if (ec) {
-            return fail(ec, "header parsing");
-          }
-          self->run({}, bytes_transferred);
+          self->run(ec, bytes_transferred);
         }));
 
-    if (ec) {
-      if (handler_) {
-        return handler_(ec, parser_, shared_from_this());
-      } else {
-        return fail(ec, "connection: reading header");
-      }
-    }
-
-    handler_({}, parser_, shared_from_this());
+    handler_(ec, parser_, shared_from_this());
   }
 }
 #include <boost/asio/unyield.hpp>
@@ -87,11 +83,16 @@ auto connection::timeout(boost::system::error_code const ec) -> void
   {
     while (true) {
       if (ec && ec != boost::asio::error::operation_aborted) {
-        return fail(ec, "connection timeout handling");
+        return handler_(ec, parser_, shared_from_this());
       }
 
       if (std::chrono::steady_clock::now() > timer_.expiry()) {
-        return close();
+        close();
+        is_closed_ = true;
+        return handler_(
+          boost::asio::error::basic_errors::timed_out,
+          parser_,
+          shared_from_this());
       }
 
       yield timer_.async_wait(
