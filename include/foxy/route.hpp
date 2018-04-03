@@ -65,7 +65,7 @@ auto match_route(
       auto const& rule    = route.rule;
       auto const& handler = route.handler;
 
-      using rule_type = std::decay<decltype(rule)>::type;
+      using rule_type = typename std::decay<decltype(rule)>::type;
       using sig_type  = typename rule_type::sig_type;
 
       using has_void_return = boost::callable_traits::has_void_return<sig_type>;
