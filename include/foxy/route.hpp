@@ -69,6 +69,7 @@ auto match_route(
       using sig_type  = typename rule_type::sig_type;
 
       using has_void_return = boost::callable_traits::has_void_return<sig_type>;
+      using synth_type      = boost::callable_traits::return_type_t<sig_type>;
 
       return hof::first_of(
         hof::if_(has_void_return())([&rule, &handler, sv](void) -> bool
