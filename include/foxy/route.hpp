@@ -6,7 +6,7 @@
 #include <boost/utility/string_view.hpp>
 
 #include <boost/fusion/container/list.hpp>
-#include <boost/fusion/algorithm/iteration/fold.hpp>
+#include <boost/fusion/algorithm/query/any.hpp>
 
 #include <boost/spirit/include/qi_rule.hpp>
 #include <boost/spirit/include/qi_parse.hpp>
@@ -48,18 +48,20 @@ auto match_route(
   boost::string_view const  sv,
   Routes             const& routes) -> bool
 {
-  namespace qi = boost::asio::spirit::qi;
+  namespace qi = boost::spirit::qi;
 
-  return boost::fusion::fold(
-    routes, false,
-    [sv](auto const& route, bool const found_match) -> bool
+  return boost::fusion::any(
+    routes,
+    [sv](auto const& route) -> bool
     {
-      if (found_match) { return found_match; }
-      if (qi::parse(sv.begin(), sv.end(), route)) {
+      auto const is_match = qi::parse(sv.begin(), sv.end(), route.rule);
+      if (is_match) {
+        // invoke handler with synthesized value
         route.handler();
       }
+      return is_match;
     });
 }
-}
+} // foxy
 
 #endif // FOXY_ROUTE_HPP_

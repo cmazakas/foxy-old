@@ -56,8 +56,6 @@ private:
 
   handler_type handler_;
 
-  bool is_closed_;
-
   template <typename F>
   auto make_stranded(F&& f)
   {
@@ -73,7 +71,6 @@ public:
     , strand_(socket_.get_executor())
     , timer_(socket_.get_executor().context())
     , handler_(std::ref(cb))
-    , is_closed_(false)
   {
   }
 

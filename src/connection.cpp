@@ -39,12 +39,8 @@ auto connection::run(
 
   // ideally, this is only true in the case when socket.close()
   // is called by the timeout routine
-  // we execute this branch unconditionally and before re-entering
-  // the main coroutine
-  // this is to help mitigate errors in the timeout routine that may
-  // lead to double invocations of the user's handler
   //
-  if (ec == boost::asio::error::operation_aborted || is_closed_) {
+  if (ec == boost::asio::error::operation_aborted) {
     return;
   }
 
@@ -87,11 +83,7 @@ auto connection::timeout(boost::system::error_code const ec) -> void
       }
 
       if (std::chrono::steady_clock::now() > timer_.expiry()) {
-        close();
-        return handler_(
-          boost::asio::error::basic_errors::timed_out,
-          parser_,
-          shared_from_this());
+        return close();
       }
 
       yield timer_.async_wait(
@@ -110,7 +102,6 @@ auto connection::close(void) -> void
 {
   socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
   socket_.close();
-  is_closed_ = true;
 }
 
 } // foxy

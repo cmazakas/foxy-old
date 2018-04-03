@@ -11,7 +11,7 @@ namespace qi = boost::spirit::qi;
 
 TEST_CASE("Our router")
 {
-  SECTION("should hopefully compile")
+  SECTION("should invoke a handler upon a succesful route match")
   {
     using iterator_type = boost::string_view::iterator;
 
@@ -25,8 +25,29 @@ TEST_CASE("Our router")
           was_called = true;
         }));
 
-    auto const* target = "/";
+    auto const* target = "/1337";
 
+    REQUIRE(foxy::match_route(target, routes));
+    REQUIRE(was_called);
+  }
 
+  SECTION("should _not_ invoke a handler upon a succesful route match")
+  {
+    using iterator_type = boost::string_view::iterator;
+
+    auto was_called = false;
+
+    auto const routes = foxy::make_routes(
+      foxy::make_route(
+        qi::rule<iterator_type>("/" >> qi::int_),
+        [&was_called](void) -> void
+        {
+          was_called = true;
+        }));
+
+    auto const* target = "/rawr";
+
+    REQUIRE(!foxy::match_route<decltype(routes)>(target, routes));
+    REQUIRE(!was_called);
   }
 }
