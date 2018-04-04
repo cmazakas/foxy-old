@@ -1,14 +1,8 @@
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.11)
 
 project(foxy)
 
-find_path(
-  CATCH_INCLUDE_DIR
-  "catch.hpp"
-
-  # TODO: fix this hard-coded path at some point
-  "/vcpkg/installed/x64-windows/include"
-)
+find_path(CATCH_INCLUDE_DIR "catch.hpp")
 
 add_library(Catch INTERFACE)
 target_include_directories(Catch INTERFACE ${CATCH_INCLUDE_DIR})
@@ -49,9 +43,6 @@ target_include_directories(
   PUBLIC
   ${Boost_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/include
-
-  # TODO: fix this hard-coded path
-  "/Users/cmaza/source/beast/include"
 )
 
 target_link_libraries(
