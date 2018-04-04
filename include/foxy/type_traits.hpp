@@ -20,6 +20,15 @@ template <typename Body>
 constexpr
 bool const
 is_body_v = boost::beast::http::is_body<Body>::value;
+
+// ripped straight from cppreference
+//
+template <typename B>
+struct negation : std::bool_constant<!bool(B::value)> { };
+
+template <typename B>
+constexpr
+bool const negation_v = negation<B>::value;
 } // foxy
 
 #endif // FOXY_TYPE_TRAITS_HPP_

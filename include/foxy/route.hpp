@@ -2,7 +2,6 @@
 #define FOXY_ROUTE_HPP_
 
 #include <utility>
-#include <type_traits>
 
 #include <boost/hof/if.hpp>
 #include <boost/hof/first_of.hpp>
@@ -17,6 +16,8 @@
 
 #include <boost/callable_traits/return_type.hpp>
 #include <boost/callable_traits/has_void_return.hpp>
+
+#include "foxy/type_traits.hpp"
 
 namespace foxy
 {
