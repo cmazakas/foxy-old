@@ -1,6 +1,8 @@
 #ifndef FOXY_ROUTE_HPP_
 #define FOXY_ROUTE_HPP_
 
+#include "foxy/type_traits.hpp"
+
 #include <utility>
 
 #include <boost/hof/if.hpp>
@@ -16,8 +18,6 @@
 
 #include <boost/callable_traits/return_type.hpp>
 #include <boost/callable_traits/has_void_return.hpp>
-
-#include "foxy/type_traits.hpp"
 
 namespace foxy
 {
@@ -72,6 +72,8 @@ auto match_route(
       using has_void_return = boost::callable_traits::has_void_return<sig_type>;
       using synth_type      = boost::callable_traits::return_type_t<sig_type>;
 
+      using has_non_void_return = negation<has_void_return>;
+
       return hof::first_of(
         hof::if_(has_void_return())([&rule, &handler, sv](void) -> bool
         {
@@ -80,6 +82,10 @@ auto match_route(
             handler();
           }
           return is_match;
+        }),
+        hof::if_(has_non_void_return())([&rule, &handler, sv](void) -> bool
+        {
+          return false;
         })
       )();
     });

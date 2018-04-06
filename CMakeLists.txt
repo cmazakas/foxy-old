@@ -10,7 +10,7 @@ target_include_directories(Catch INTERFACE ${CATCH_INCLUDE_DIR})
 find_package(
   Boost 1.67
   REQUIRED
-  COMPONENTS system coroutine context
+  COMPONENTS system coroutine context thread
 )
 
 add_library(
@@ -78,6 +78,7 @@ target_link_libraries(
   test_utils
   Catch
   ${Boost_CONTEXT_LIBRARY}
+  ${Boost_THREAD_LIBRARY}
 )
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake.modules/")

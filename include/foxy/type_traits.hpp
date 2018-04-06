@@ -2,6 +2,7 @@
 #define FOXY_TYPE_TRAITS_HPP_
 
 #include <type_traits>
+#include <boost/beast/http/type_traits.hpp>
 #include <boost/beast/core/type_traits.hpp>
 
 namespace foxy
@@ -23,8 +24,11 @@ is_body_v = boost::beast::http::is_body<Body>::value;
 
 // ripped straight from cppreference
 //
+template <bool B>
+using bool_constant = std::integral_constant<bool, B>;
+
 template <typename B>
-struct negation : std::bool_constant<!bool(B::value)> { };
+struct negation : bool_constant<!bool(B::value)> { };
 
 template <typename B>
 constexpr
