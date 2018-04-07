@@ -6,6 +6,7 @@
 #include <utility>
 
 #include <boost/hof/if.hpp>
+#include <boost/hof/eval.hpp>
 #include <boost/hof/first_of.hpp>
 
 #include <boost/utility/string_view.hpp>
@@ -72,10 +73,14 @@ auto match_route(
       using has_void_return = boost::callable_traits::has_void_return<sig_type>;
       using synth_type      = boost::callable_traits::return_type_t<sig_type>;
 
+      static_assert(std::is_same<synth_type, int>(), "lol woops");
+
       using has_non_void_return = negation<has_void_return>;
 
-      return hof::first_of(
-        hof::if_(has_void_return())([&rule, &handler, sv](void) -> bool
+      static_assert(has_non_void_return() && !has_void_return(), "type traits not met");
+
+      return hof::eval(hof::first_of(
+        hof::if_(has_void_return())([&rule, &handler, sv](auto id) -> bool
         {
           auto const is_match = qi::parse(sv.begin(), sv.end(), rule);
           if (is_match) {
@@ -83,11 +88,20 @@ auto match_route(
           }
           return is_match;
         }),
-        hof::if_(has_non_void_return())([&rule, &handler, sv](void) -> bool
+        hof::if_(has_non_void_return())([&rule, &handler, sv](auto id) -> bool
         {
-          return false;
+          using rule_type  = typename std::decay<decltype(rule)>::type;
+          using sig_type   = typename rule_type::sig_type;
+          using synth_type = boost::callable_traits::return_type_t<sig_type>;
+
+          synth_type attr;
+          auto const is_match = qi::parse(sv.begin(), sv.end(), rule, attr);
+          if (is_match) {
+            handler(attr);
+          }
+          return is_match;
         })
-      )();
+      ));
     });
 }
 } // foxy
