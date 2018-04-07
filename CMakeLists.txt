@@ -49,8 +49,8 @@ target_link_libraries(
   foxy_core
 
   PUBLIC
-  ${Boost_COROUTINE_LIBRARY}
-  ${Boost_SYSTEM_LIBRARY}
+  Boost::coroutine
+  Boost::system
 )
 
 # keep this around, just in case
@@ -77,8 +77,8 @@ target_link_libraries(
   foxy_core
   test_utils
   Catch
-  ${Boost_CONTEXT_LIBRARY}
-  ${Boost_THREAD_LIBRARY}
+  Boost::context
+  Boost::thread
 )
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake.modules/")
