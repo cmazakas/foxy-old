@@ -52,58 +52,6 @@ auto make_routes(Routes&&... routes)
   return boost::fusion::list<Routes...>(std::forward<Routes>(routes)...);
 }
 
-// template <typename Routes>
-// auto match_route(
-//   boost::string_view const  sv,
-//   Routes             const& routes) -> bool
-// {
-//   namespace qi  = boost::spirit::qi;
-//   namespace hof = boost::hof;
-
-//   return boost::fusion::any(
-//     routes,
-//     [sv](auto const& route) -> bool
-//     {
-//       auto const& rule    = route.rule;
-//       auto const& handler = route.handler;
-
-//       using rule_type = typename std::decay<decltype(rule)>::type;
-//       using sig_type  = typename rule_type::sig_type;
-
-//       using has_void_return = boost::callable_traits::has_void_return<sig_type>;
-//       using synth_type      = boost::callable_traits::return_type_t<sig_type>;
-
-//       static_assert(std::is_same<synth_type, int>(), "lol woops");
-
-//       using has_non_void_return = negation<has_void_return>;
-
-//       static_assert(has_non_void_return() && !has_void_return(), "type traits not met");
-
-//       return hof::eval(hof::first_of(
-//         hof::if_(has_void_return())([&rule, &handler, sv](auto id) -> bool
-//         {
-//           auto const is_match = qi::parse(sv.begin(), sv.end(), rule);
-//           if (is_match) {
-//             handler();
-//           }
-//           return is_match;
-//         }),
-//         hof::if_(has_non_void_return())([&rule, &handler, sv](auto id) -> bool
-//         {
-//           using rule_type  = typename std::decay<decltype(rule)>::type;
-//           using sig_type   = typename rule_type::sig_type;
-//           using synth_type = boost::callable_traits::return_type_t<sig_type>;
-
-//           synth_type attr;
-//           auto const is_match = qi::parse(sv.begin(), sv.end(), rule, attr);
-//           if (is_match) {
-//             handler(attr);
-//           }
-//           return is_match;
-//         })
-//       ));
-//     });
-// }
 } // foxy
 
 #endif // FOXY_ROUTE_HPP_

@@ -31,27 +31,27 @@ TEST_CASE("Our router")
 
     auto const* target = "/1337";
 
-    foxy::match_route(target, routes);
+    REQUIRE(foxy::match_route(target, routes));
     REQUIRE(was_called);
   }
 
   SECTION("should _not_ invoke a handler upon a succesful route match")
   {
-    // using iterator_type = boost::string_view::iterator;
+    using iterator_type = boost::string_view::iterator;
 
-    // auto was_called = false;
+    auto was_called = false;
 
-    // auto const routes = foxy::make_routes(
-    //   foxy::make_route(
-    //     qi::rule<iterator_type>("/" >> qi::int_),
-    //     [&was_called](void) -> void
-    //     {
-    //       was_called = true;
-    //     }));
+    auto const routes = foxy::make_routes(
+      foxy::make_route(
+        qi::rule<iterator_type>("/" >> qi::int_),
+        [&was_called](void) -> void
+        {
+          was_called = true;
+        }));
 
-    // auto const* target = "/rawr";
+    auto const* target = "/rawr";
 
-    // REQUIRE(!foxy::match_route<decltype(routes)>(target, routes));
-    // REQUIRE(!was_called);
+    REQUIRE(!foxy::match_route(target, routes));
+    REQUIRE(!was_called);
   }
 }

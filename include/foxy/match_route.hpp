@@ -108,11 +108,11 @@ template <typename RouteSequence>
 auto match_route(
   string_view   const  sv,
   RouteSequence const& routes
-) -> void
+) -> bool
 {
   namespace fusion = boost::fusion;
 
-  fusion::any(
+  return fusion::any(
     routes,
     [sv](auto const& route) -> bool
     {
