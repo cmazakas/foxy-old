@@ -5,8 +5,6 @@
 #include <boost/spirit/include/qi_rule.hpp>
 #include <boost/fusion/container/vector.hpp>
 
-#include "foxy/type_traits.hpp"
-
 namespace foxy
 {
 template <
