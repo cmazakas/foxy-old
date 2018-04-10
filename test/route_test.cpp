@@ -1,4 +1,5 @@
 #include "foxy/route.hpp"
+#include "foxy/match_route.hpp"
 
 #include <boost/spirit/include/qi_int.hpp>
 #include <boost/spirit/include/qi_lit.hpp>
@@ -30,7 +31,7 @@ TEST_CASE("Our router")
 
     auto const* target = "/1337";
 
-    REQUIRE(foxy::match_route(target, routes));
+    foxy::match_route(target, routes);
     REQUIRE(was_called);
   }
 
