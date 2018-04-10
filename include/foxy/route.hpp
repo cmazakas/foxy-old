@@ -1,24 +1,11 @@
 #ifndef FOXY_ROUTE_HPP_
 #define FOXY_ROUTE_HPP_
 
-#include "foxy/type_traits.hpp"
-
 #include <utility>
-
-#include <boost/hof/if.hpp>
-#include <boost/hof/eval.hpp>
-#include <boost/hof/first_of.hpp>
-
-#include <boost/utility/string_view.hpp>
-
-#include <boost/fusion/container/list.hpp>
-#include <boost/fusion/algorithm/query/any.hpp>
-
 #include <boost/spirit/include/qi_rule.hpp>
-#include <boost/spirit/include/qi_parse.hpp>
+#include <boost/fusion/container/vector.hpp>
 
-#include <boost/callable_traits/return_type.hpp>
-#include <boost/callable_traits/has_void_return.hpp>
+#include "foxy/type_traits.hpp"
 
 namespace foxy
 {
@@ -49,7 +36,7 @@ auto make_route(
 template <typename ...Routes>
 auto make_routes(Routes&&... routes)
 {
-  return boost::fusion::list<Routes...>(std::forward<Routes>(routes)...);
+  return boost::fusion::vector<Routes...>(std::forward<Routes>(routes)...);
 }
 
 } // foxy
