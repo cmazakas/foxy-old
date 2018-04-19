@@ -35,7 +35,7 @@ TEST_CASE("Our router")
     REQUIRE(was_called);
   }
 
-  SECTION("should _not_ invoke a handler upon a succesful route match")
+  SECTION("should _not_ invoke a handler upon a failed route match")
   {
     using iterator_type = boost::string_view::iterator;
 

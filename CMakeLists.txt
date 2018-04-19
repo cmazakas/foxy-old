@@ -33,9 +33,10 @@ target_compile_definitions(
   PUBLIC
   BOOST_COROUTINES_NO_DEPRECATION_WARNING=1
   BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE=1
+  _SILENCE_CXX17_ALLOCATOR_VOID_DEPRECATION_WARNING
 )
 
-target_compile_features(foxy_core PUBLIC cxx_std_14)
+target_compile_features(foxy_core PUBLIC cxx_std_17)
 
 target_include_directories(
   foxy_core
@@ -68,6 +69,7 @@ add_executable(
   ${CMAKE_CURRENT_SOURCE_DIR}/test/async_read_body_test.cpp
   #${CMAKE_CURRENT_SOURCE_DIR}/test/listener_test.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/test/route_test.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/client_test.cpp
 )
 
 target_link_libraries(
