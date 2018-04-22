@@ -4,7 +4,7 @@
 #include <string>
 #include <iostream>
 
-#include <boost/asio/ip/tcp.hpp>
+
 #include <boost/asio/io_context.hpp>
 
 #include <boost/beast/http/verb.hpp>
@@ -19,12 +19,12 @@ namespace asio  = boost::asio;
 namespace http  = boost::beast::http;
 namespace beast = boost::beast;
 
-using asio::ip::tcp;
-
 namespace
 {
 
-auto make_req(tcp::socket& stream) -> foxy::awaitable<void, asio::io_context::executor_type>
+auto make_req(
+  asio::io_context& io
+) -> foxy::awaitable<void, asio::io_context::executor_type>
 {
   auto token = co_await foxy::this_coro::token();
 
@@ -33,12 +33,12 @@ auto make_req(tcp::socket& stream) -> foxy::awaitable<void, asio::io_context::ex
 
   auto req = http::request<http::empty_body>(http::verb::get, "/", 11);
   auto res = co_await foxy::async_send_request<http::string_body, http::fields>(
-    stream,
+    io,
     host, port,
     req,
     token);
 
-  std::cout << "Request successfully complted!\n";
+  std::cout << "Request successfully completed!\n";
   std::cout << res << '\n';
 }
 
@@ -50,10 +50,7 @@ TEST_CASE("Our HTTP client")
   SECTION("should hopefully compile")
   {
     asio::io_context io;
-
-    tcp::socket stream(io);
-
-    foxy::co_spawn(io, [&]() { return make_req(stream); }, foxy::detached);
+    foxy::co_spawn(io, [&]() { return make_req(io); }, foxy::detached);
     io.run();
   }
 }

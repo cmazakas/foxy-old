@@ -7,6 +7,7 @@
 
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/connect.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/associated_executor.hpp>
 
@@ -20,6 +21,13 @@
 
 #include "foxy/coroutine.hpp"
 
+/**
+ * TODO:
+ * 1. refactor code to respect HTTP status code 100
+ * 2. refactor code to respect HTTP status codes guaranteeing no body via
+ *    http::parser::skip
+ * 3. decide how to handle redirects
+ */
 namespace foxy
 {
 
@@ -42,7 +50,7 @@ template <
   typename Handler
 >
 auto send_request_op(
-  AsyncStream&                                    stream,
+  AsyncStream                                     stream,
   std::string const&                              host,
   std::string const&                              port,
   boost::beast::http::request<ReqBody, ReqFields> request,
@@ -109,12 +117,11 @@ auto send_request_op(
  */
 template <
   typename ResBody, typename ResFields,
-  typename AsyncStream,
   typename ReqBody, typename ReqFields,
   typename CompletionToken
 >
 auto async_send_request(
-  AsyncStream&                                    stream,
+  boost::asio::io_context&                        io,
   std::string const&                              host,
   std::string const&                              port,
   boost::beast::http::request<ReqBody, ReqFields> request,
@@ -134,10 +141,12 @@ auto async_send_request(
     CompletionToken, void(
       error_code, http::response<ResBody, ResFields>)> init(token);
 
+  auto executor = asio::get_associated_executor(init.completion_handler, io);
+
   co_spawn(
-    stream.get_executor(),
+    executor,
     [
-      &stream,
+      &io,
       host, port,
       req     = std::move(request),
       handler = std::move(init.completion_handler)
@@ -145,7 +154,7 @@ auto async_send_request(
     (void) mutable -> awaitable<void>
     {
       return detail::send_request_op<ResBody, ResFields>(
-        stream,
+        boost::asio::ip::tcp::socket(io),
         host, port,
         std::move(req),
         std::move(handler));
