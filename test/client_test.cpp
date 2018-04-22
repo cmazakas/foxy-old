@@ -28,8 +28,8 @@ auto make_req(tcp::socket& stream) -> foxy::awaitable<void, asio::io_context::ex
 {
   auto token = co_await foxy::this_coro::token();
 
-  auto const host   = std::string("www.google.com");
-  auto const port   = std::string("80");
+  auto const host = std::string("www.google.com");
+  auto const port = std::string("80");
 
   auto req = http::request<http::empty_body>(http::verb::get, "/", 11);
   auto res = co_await foxy::async_send_request<http::string_body, http::fields>(
