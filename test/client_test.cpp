@@ -7,8 +7,8 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/io_context.hpp>
 
-#include <boost/beast/core/ostream.hpp>
 #include <boost/beast/http/verb.hpp>
+#include <boost/beast/http/write.hpp>
 #include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/empty_body.hpp>
 #include <boost/beast/http/string_body.hpp>
@@ -29,22 +29,17 @@ auto make_req(tcp::socket& stream) -> foxy::awaitable<void, asio::io_context::ex
   auto token = co_await foxy::this_coro::token();
 
   auto const host   = std::string("www.google.com");
-  auto const port   = std::string("443");
-  auto const target = std::string("/");
+  auto const port   = std::string("80");
 
-  auto req = http::request<http::empty_body>(http::verb::get, target, 11);
-
-  std::cout << "made request, invoking initiating function\n";
-
+  auto req = http::request<http::empty_body>(http::verb::get, "/", 11);
   auto res = co_await foxy::async_send_request<http::string_body, http::fields>(
-    host, port,
     stream,
+    host, port,
     req,
     token);
 
-  std::cout << "send request is done\n";
-
-  std::cout << res.result() << '\n';
+  std::cout << "Request successfully complted!\n";
+  std::cout << res << '\n';
 }
 
 }

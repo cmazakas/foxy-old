@@ -5,14 +5,20 @@
 #include <utility>
 #include <iostream>
 
-#include <boost/asio/post.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/connect.hpp>
+#include <boost/asio/async_result.hpp>
 #include <boost/asio/associated_executor.hpp>
 
 #include <boost/system/error_code.hpp>
+
+#include <boost/beast/core/flat_buffer.hpp>
+
+#include <boost/beast/http/read.hpp>
+#include <boost/beast/http/write.hpp>
 #include <boost/beast/http/message.hpp>
 
 #include "foxy/coroutine.hpp"
-#include "foxy/async_result.hpp"
 
 namespace foxy
 {
@@ -20,13 +26,73 @@ namespace foxy
 namespace detail
 {
 
-template <typename Body, typename Fields, typename Handler>
-auto send_request_op(Handler handler) -> awaitable<void>
+template <typename CompletionToken>
+auto make_redirect_error_token(
+  CompletionToken&&          token,
+  boost::system::error_code& ec)
 {
-  auto res = http::response<Body, Fields>();
-  res.result(200);
-  handler({},  http::response<Body, Fields>());
-  co_return;
+  return redirect_error_t<CompletionToken>(
+    std::forward<CompletionToken>(token), ec);
+}
+
+template <
+  typename ResBody, typename ResFields,
+  typename AsyncStream,
+  typename ReqBody, typename ReqFields,
+  typename Handler
+>
+auto send_request_op(
+  AsyncStream&                                    stream,
+  std::string const&                              host,
+  std::string const&                              port,
+  boost::beast::http::request<ReqBody, ReqFields> request,
+  Handler                                         handler
+) -> awaitable<void>
+{
+  using boost::asio::ip::tcp;
+
+  namespace asio = boost::asio;
+  namespace http = boost::beast::http;
+
+  namespace beast = boost::beast;
+
+  auto ec       = boost::system::error_code();
+  auto token    = make_redirect_error_token(co_await this_coro::token(), ec);
+  auto resolver = tcp::resolver(stream.get_executor().context());
+
+  auto const results = co_await resolver.async_resolve(host, port, token);
+  if (ec) {
+    return handler(ec, http::response<ResBody, ResFields>());
+  }
+
+  co_await asio::async_connect(
+    stream,
+    results.begin(), results.end(),
+    token);
+
+  if (ec) {
+    return handler(ec, http::response<ResBody, ResFields>());
+  }
+
+  co_await http::async_write(stream, request, token);
+  if (ec) {
+    return handler(ec, http::response<ResBody, ResFields>());
+  }
+
+  auto buffer   = beast::flat_buffer();
+  auto response = http::response<ResBody, ResFields>();
+
+  co_await http::async_read(stream, buffer, response, token);
+  if (ec) {
+    return handler(ec, http::response<ResBody, ResFields>());
+  }
+
+  stream.shutdown(tcp::socket::shutdown_both, ec);
+  if (ec) {
+    return handler(ec, http::response<ResBody, ResFields>());
+  }
+
+  handler({}, std::move(response));
 }
 
 } // detail
@@ -48,17 +114,16 @@ template <
   typename CompletionToken
 >
 auto async_send_request(
+  AsyncStream&                                    stream,
   std::string const&                              host,
   std::string const&                              port,
-  AsyncStream&                                    stream,
-  boost::beast::http::request<ReqBody, ReqFields> req,
+  boost::beast::http::request<ReqBody, ReqFields> request,
   CompletionToken&&                               token
-) -> init_fn_result_type<
+) -> BOOST_ASIO_INITFN_RESULT_TYPE(
     CompletionToken,
     void(
       boost::system::error_code,
-      boost::beast::http::response<ResBody, ResFields>)
-  >
+      boost::beast::http::response<ResBody, ResFields>))
 {
   using boost::system::error_code;
 
@@ -70,10 +135,20 @@ auto async_send_request(
       error_code, http::response<ResBody, ResFields>)> init(token);
 
   co_spawn(
-    stream.get_executor().context(),
-    [handler = std::move(init.completion_handler)](void) mutable -> awaitable<void>
+    stream.get_executor(),
+    [
+      &stream,
+      host, port,
+      req     = std::move(request),
+      handler = std::move(init.completion_handler)
+    ]
+    (void) mutable -> awaitable<void>
     {
-      return detail::send_request_op<ResBody, ResFields>(std::move(handler));
+      return detail::send_request_op<ResBody, ResFields>(
+        stream,
+        host, port,
+        std::move(req),
+        std::move(handler));
     },
     detached);
 
