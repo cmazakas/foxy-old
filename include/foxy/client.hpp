@@ -70,7 +70,7 @@ auto send_request_op(
 
   auto const results = co_await resolver.async_resolve(host, port, token);
   if (ec) {
-    return handler(ec, http::response<ResBody, ResFields>());
+    co_return handler(ec, http::response<ResBody, ResFields>());
   }
 
   co_await asio::async_connect(
@@ -79,12 +79,12 @@ auto send_request_op(
     token);
 
   if (ec) {
-    return handler(ec, http::response<ResBody, ResFields>());
+    co_return handler(ec, http::response<ResBody, ResFields>());
   }
 
   co_await http::async_write(stream, request, token);
   if (ec) {
-    return handler(ec, http::response<ResBody, ResFields>());
+    co_return handler(ec, http::response<ResBody, ResFields>());
   }
 
   auto buffer   = beast::flat_buffer();
@@ -92,12 +92,12 @@ auto send_request_op(
 
   co_await http::async_read(stream, buffer, response, token);
   if (ec) {
-    return handler(ec, http::response<ResBody, ResFields>());
+    co_return handler(ec, http::response<ResBody, ResFields>());
   }
 
   stream.shutdown(tcp::socket::shutdown_both, ec);
   if (ec) {
-    return handler(ec, http::response<ResBody, ResFields>());
+    co_return handler(ec, http::response<ResBody, ResFields>());
   }
 
   handler({}, std::move(response));
