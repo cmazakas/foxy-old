@@ -17,6 +17,15 @@ using boost::asio::experimental::awaitable;
 using boost::asio::experimental::redirect_error_t;
 
 namespace this_coro = boost::asio::experimental::this_coro;
+
+template <typename CompletionToken>
+auto make_redirect_error_token(
+  CompletionToken&&          token,
+  boost::system::error_code& ec)
+{
+  return redirect_error_t<CompletionToken>(
+    std::forward<CompletionToken>(token), ec);
+}
 }
 
 #endif // FOXY_COROUTINE_HPP_

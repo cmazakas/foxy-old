@@ -1,40 +1,30 @@
 #include "foxy/listener.hpp"
 
-#include <utility>
-#include <chrono>
+#include <memory>
+#include <boost/system/error_code.hpp>
+#include "foxy/session.hpp"
 
-#include <boost/asio/post.hpp>
-#include <boost/asio/associated_executor.hpp>
-
-#include "foxy/log.hpp"
+using boost::asio::ip::tcp;
+using boost::system::error_code;
 
 namespace foxy
 {
 
-#include <boost/asio/yield.hpp>
-auto listener::accept(boost::system::error_code const ec) -> void
+auto listener(
+  boost::asio::io_context&              io,
+  boost::asio::ip::tcp::endpoint const& endpoint
+) -> awaitable<void>
 {
-  reenter(accept_coro_)
-  {
-    for (;;) {
-      yield acceptor_.async_accept(
-        socket_,
-        [self = this->shared_from_this()]
-        (boost::system::error_code const& ec) -> void
-        {
-          self->accept(ec);
-        });
+  auto ec       = error_code();
+  auto token    = make_redirect_error_token(co_await this_coro::token(), ec);
+  auto socket   = tcp::socket(io);
+  auto acceptor = tcp::acceptor(io, endpoint);
 
-      if (ec) {
-        fail(ec, "accepting new connection");
-        continue;
-      }
+  for (;;) {
+    co_await acceptor.async_accept(socket, token);
 
-      std::make_shared<connection>(
-        std::move(socket_), handler_)->run();
-    }
+    std::make_shared<session>(std::move(socket))->start();
   }
 }
-#include <boost/asio/unyield.hpp>
 
 } // foxy

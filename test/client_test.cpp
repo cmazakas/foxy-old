@@ -38,8 +38,8 @@ auto make_req(
     req,
     token);
 
-  std::cout << "Request successfully completed!\n";
-  std::cout << res << '\n';
+  // std::cout << "Request successfully completed!\n";
+  // std::cout << res << '\n';
 }
 
 }

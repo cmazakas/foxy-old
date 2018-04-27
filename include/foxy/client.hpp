@@ -34,15 +34,6 @@ namespace foxy
 namespace detail
 {
 
-template <typename CompletionToken>
-auto make_redirect_error_token(
-  CompletionToken&&          token,
-  boost::system::error_code& ec)
-{
-  return redirect_error_t<CompletionToken>(
-    std::forward<CompletionToken>(token), ec);
-}
-
 template <
   typename ResBody, typename ResFields,
   typename AsyncStream,
