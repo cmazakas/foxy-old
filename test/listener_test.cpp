@@ -28,6 +28,8 @@ TEST_CASE("Our listener type")
 
         foxy::co_spawn(executor, []() -> foxy::awaitable<void> { for (int i = 0; i < 10; ++i) std::cout << "hello\n"; co_return; }, foxy::detached);
         foxy::co_spawn(executor, []() -> foxy::awaitable<void> { std::cout << "world\n"; co_return; }, foxy::detached);
+
+        std::cout << "waiting for child coroutines to complete\n";
       },
       foxy::detached);
 
