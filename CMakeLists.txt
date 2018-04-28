@@ -42,7 +42,6 @@ target_include_directories(
   foxy_core
 
   PUBLIC
-  ${Boost_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
@@ -50,12 +49,15 @@ target_link_libraries(
   foxy_core
 
   PUBLIC
+  Boost::boost
   Boost::coroutine
   Boost::system
 )
 
-# keep this around, just in case
 if (MSVC)
+  target_compile_options(foxy_core PUBLIC "/await")
+
+  # keep this around, just in case
   target_link_libraries(foxy_core PUBLIC Boost::disable_autolinking)
 endif()
 
