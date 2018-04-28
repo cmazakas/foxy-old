@@ -1,6 +1,16 @@
 #include "foxy/session.hpp"
 
-namespace asio = boost::asio;
+#include <boost/beast/http/read.hpp>
+#include <boost/beast/core/flat_buffer.hpp>
+
+#include <boost/system/error_code.hpp>
+
+#include "foxy/log.hpp"
+#include "foxy/header_parser.hpp"
+
+namespace asio  = boost::asio;
+namespace http  = boost::beast::http;
+namespace beast = boost::beast;
 
 namespace foxy
 {
@@ -32,6 +42,18 @@ auto session::start(void) -> void
 
 auto session::request_handler(void) -> awaitable<void, strand_type>
 {
+  auto ec    = boost::system::error_code();
+  auto token = make_redirect_error_token(co_await this_coro::token(), ec);
+
+  header_parser<> parser;
+
+  auto buffer = beast::flat_buffer();
+
+  co_await http::async_read_header(socket_, buffer, parser, token);
+  if (ec) {
+    co_return fail(ec, "read header");
+  }
+
   co_return;
 }
 
