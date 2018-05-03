@@ -2,6 +2,9 @@
 
 #include <memory>
 #include <boost/system/error_code.hpp>
+#include <boost/core/ignore_unused.hpp>
+
+#include "foxy/log.hpp"
 #include "foxy/session.hpp"
 
 using boost::asio::ip::tcp;
@@ -21,7 +24,11 @@ auto listener(
   auto acceptor = tcp::acceptor(io, endpoint);
 
   for (;;) {
-    co_await acceptor.async_accept(socket, token);
+    boost::ignore_unused(co_await acceptor.async_accept(socket, token));
+    if (ec) {
+      fail(ec, "accept");
+      continue;
+    }
 
     std::make_shared<session>(std::move(socket))->start();
   }

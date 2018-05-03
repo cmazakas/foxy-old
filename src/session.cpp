@@ -1,5 +1,7 @@
 #include "foxy/session.hpp"
 
+#include <boost/core/ignore_unused.hpp>
+
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 
@@ -49,7 +51,8 @@ auto session::request_handler(void) -> awaitable<void, strand_type>
 
   auto buffer = beast::flat_buffer();
 
-  co_await http::async_read_header(socket_, buffer, parser, token);
+  boost::ignore_unused(
+    co_await http::async_read_header(socket_, buffer, parser, token));
   if (ec) {
     co_return fail(ec, "read header");
   }

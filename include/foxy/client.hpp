@@ -5,6 +5,8 @@
 #include <utility>
 #include <iostream>
 
+#include <boost/core/ignore_unused.hpp>
+
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/io_context.hpp>
@@ -64,16 +66,16 @@ auto send_request_op(
     co_return handler(ec, http::response<ResBody, ResFields>());
   }
 
-  co_await asio::async_connect(
+  boost::ignore_unused(co_await asio::async_connect(
     stream,
     results.begin(), results.end(),
-    token);
+    token));
 
   if (ec) {
     co_return handler(ec, http::response<ResBody, ResFields>());
   }
 
-  co_await http::async_write(stream, request, token);
+  boost::ignore_unused(co_await http::async_write(stream, request, token));
   if (ec) {
     co_return handler(ec, http::response<ResBody, ResFields>());
   }
@@ -81,7 +83,8 @@ auto send_request_op(
   auto buffer   = beast::flat_buffer();
   auto response = http::response<ResBody, ResFields>();
 
-  co_await http::async_read(stream, buffer, response, token);
+  boost::ignore_unused(
+    co_await http::async_read(stream, buffer, response, token));
   if (ec) {
     co_return handler(ec, http::response<ResBody, ResFields>());
   }
