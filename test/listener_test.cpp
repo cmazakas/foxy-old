@@ -29,8 +29,10 @@ TEST_CASE("Our listener type")
       foxy::make_route(
         int_rule,
         [](
-          int const user_id,
-          boost::system::error_code const ec) -> void
+          boost::system::error_code const& ec,
+          tcp::socket&                     stream,
+          foxy::header_parser<>&           parser,
+          int const                        user_id) -> void
         {
 
         }
@@ -42,7 +44,7 @@ TEST_CASE("Our listener type")
       {
         return foxy::listener(
           io,
-          {tcp::v4(), static_cast<unsigned short>(1337)},
+          { tcp::v4(), static_cast<unsigned short>(1337) },
           routes);
       },
       foxy::detached);
