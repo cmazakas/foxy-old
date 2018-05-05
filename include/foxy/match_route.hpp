@@ -4,6 +4,7 @@
 #include <tuple>
 #include <utility>
 
+#include <boost/hof/unpack.hpp>
 #include <boost/hof/partial.hpp>
 
 #include <boost/spirit/include/qi_parse.hpp>
@@ -32,7 +33,7 @@ auto invoke_with_no_attr(
 
   auto const is_match = qi::parse(sv.begin(), sv.end(), rule);
   if (is_match) {
-    handler(std::forward<Args>(args)...);
+    handler(args...);
   }
   return is_match;
 }
@@ -54,18 +55,19 @@ auto invoke_with_attr(
   attr_type  attr;
   auto const is_match = qi::parse(sv.begin(), sv.end(), rule, attr);
   if (is_match) {
-    handler(attr, std::forward<Args>(args)...);
+    handler(attr, args...);
   }
   return is_match;
 }
 
+template <typename ...Args>
 struct match_and_invoke
 {
-  template <typename Route, typename ...Args>
+  template <typename Route>
   auto operator()(
     string_view const  sv,
     Route       const& route,
-    Args&&...          args) const -> bool
+    Args...            args) const -> bool
   {
     auto const& rule    = route.rule;
     auto const& handler = route.handler;
@@ -78,10 +80,10 @@ struct match_and_invoke
 
     if constexpr (has_void_return::value) {
       return detail::invoke_with_no_attr(
-        sv, rule, handler, std::forward<Args>(args)...);
+        sv, rule, handler, args...);
     } else {
       return detail::invoke_with_attr(
-        sv, rule, handler, std::forward<Args>(args)...);
+        sv, rule, handler, args...);
     }
   }
 };
@@ -107,23 +109,24 @@ template <
 auto match_route(
   string_view   const  sv,
   RouteSequence const& routes,
-  Args&&...            args
+  Args...              args
 ) -> bool
 {
   namespace hof    = boost::hof;
   namespace fusion = boost::fusion;
 
-  auto matcher = hof::partial(detail::match_and_invoke())(sv);
+    auto matcher = hof::partial(
+      detail::match_and_invoke<Args...>());
 
   return fusion::any(
     routes,
-    [matcher, arg_tuple = std::forward_as_tuple(args...)]
+    [sv, matcher, arg_tuple = std::make_tuple(args...)]
     (auto const& route) -> bool
     {
       if constexpr (std::tuple_size_v<decltype(arg_tuple)> == 0) {
-        return matcher(route);
+        return matcher(sv, route);
       } else {
-        return std::apply(matcher(route), arg_tuple)();
+        return hof::unpack(matcher(sv, route))(arg_tuple);
       }
     });
 }

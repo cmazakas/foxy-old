@@ -1,72 +1,52 @@
-#include <vector>
-#include <thread>
-#include <cstddef>
-#include <iostream>
-#include <memory>
+#include "foxy/listener.hpp"
 
 #include <boost/asio/io_context.hpp>
 
+#include <boost/spirit/include/qi_int.hpp>
+#include <boost/spirit/include/qi_lit.hpp>
+#include <boost/spirit/include/qi_rule.hpp>
+#include <boost/spirit/include/qi_sequence.hpp>
+
+#include "foxy/route.hpp"
 #include "foxy/coroutine.hpp"
 
 #include <catch.hpp>
 
+namespace qi   = boost::spirit::qi;
 namespace asio = boost::asio;
 
-namespace
-{
-  struct non_trivial_t
-  {
-    int x = 0;
-
-    non_trivial_t(void)
-    {
-      std::cout << "constructing non-trivial type\n";
-    }
-
-    ~non_trivial_t(void)
-    {
-      std::cout << "destructing non-trivial type\n";
-    }
-  };
-}
+using boost::asio::ip::tcp;
 
 TEST_CASE("Our listener type")
 {
   SECTION("should at least compile")
   {
-    auto const num_threads = std::size_t{4};
+    asio::io_context io;
 
-    asio::io_context io(num_threads);
+    auto const int_rule = qi::rule<char const*, int()>("/" >> qi::int_);
+
+    auto const routes = foxy::make_routes(
+      foxy::make_route(
+        int_rule,
+        [](
+          int const user_id,
+          boost::system::error_code const ec) -> void
+        {
+
+        }
+      ));
 
     foxy::co_spawn(
       io,
-      []() -> foxy::awaitable<void>
+      [&]()
       {
-        auto non_trivial = std::make_shared<non_trivial_t>();
-
-        auto token    = co_await foxy::this_coro::token();
-        auto executor = co_await foxy::this_coro::executor();
-
-        foxy::co_spawn(executor, [non_trivial]() -> foxy::awaitable<void> { for (int i = 0; i < 10; ++i) std::cout << "hello\n"; co_return; }, foxy::detached);
-        foxy::co_spawn(executor, [non_trivial]() -> foxy::awaitable<void> { std::cout << "world\n"; co_return; }, foxy::detached);
-
-        std::cout << "waiting for child coroutines to complete\n";
-        std::cout << non_trivial->x << '\n';
+        return foxy::listener(
+          io,
+          {tcp::v4(), static_cast<unsigned short>(1337)},
+          routes);
       },
       foxy::detached);
 
-    auto threads = std::vector<std::thread>();
-    threads.reserve(num_threads);
-    for (std::size_t i = 0; i < num_threads; ++i) {
-      threads.emplace_back(
-        [&](void) -> void
-        {
-          io.run();
-        });
-    }
-
-    for (auto& t : threads) {
-      t.join();
-    }
+    io.run();
   }
 }

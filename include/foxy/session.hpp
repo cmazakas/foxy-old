@@ -4,17 +4,27 @@
 #include <memory>
 #include <utility>
 
+#include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/asio/io_context.hpp>
 
-#include <boost/asio/ip/tcp.hpp>
+#include <boost/core/ignore_unused.hpp>
 
+#include <boost/beast/http/read.hpp>
+#include <boost/beast/core/flat_buffer.hpp>
+
+#include <boost/system/error_code.hpp>
+
+#include "foxy/log.hpp"
 #include "foxy/coroutine.hpp"
+#include "foxy/match_route.hpp"
+#include "foxy/header_parser.hpp"
 
 namespace foxy
 {
 
-struct session : public std::enable_shared_from_this<session>
+template <typename Routes>
+struct session : public std::enable_shared_from_this<session<Routes>>
 {
 public:
   using socket_type = boost::asio::ip::tcp::socket;
@@ -22,17 +32,70 @@ public:
     boost::asio::io_context::executor_type>;
 
 private:
-  socket_type socket_;
-  strand_type strand_;
+  socket_type   socket_;
+  strand_type   strand_;
+  Routes const& routes_;
 
 public:
   explicit
-  session(socket_type socket);
+  session(socket_type socket, Routes const& routes)
+  : socket_(std::move(socket))
+  , strand_(socket.get_executor())
+  , routes_(routes)
+  {
+  }
 
-  auto start(void) -> void;
-  auto request_handler(void) -> awaitable<void, strand_type>;
-  auto timeout(void) -> awaitable<void, strand_type>;
+  auto start(void) -> void
+  {
+    co_spawn(
+      strand_,
+      [self = this->shared_from_this()]()
+      {
+        return self->request_handler();
+      },
+      detached);
+
+    co_spawn(
+      strand_,
+      [self = this->shared_from_this()]()
+      {
+        return self->timeout();
+      },
+      detached);
+  }
+
+  auto request_handler(void) -> awaitable<void, strand_type>
+  {
+    namespace http  = boost::beast::http;
+    namespace beast = boost::beast;
+
+    auto ec    = boost::system::error_code();
+    auto token = make_redirect_error_token(co_await this_coro::token(), ec);
+
+    header_parser<> parser;
+
+    auto buffer = beast::flat_buffer();
+
+    boost::ignore_unused(
+      co_await http::async_read_header(socket_, buffer, parser, token));
+    if (ec) {
+      co_return fail(ec, "read header");
+    }
+
+    match_route(
+      parser.get().target(),
+      routes_,
+      ec);
+
+    co_return;
+  }
+
+  auto timeout(void) -> awaitable<void, strand_type>
+  {
+    co_return;
+  }
 };
+
 
 } // foxy
 
