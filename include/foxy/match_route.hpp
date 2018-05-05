@@ -1,9 +1,10 @@
 #ifndef FOXY_MATCH_ROUTE_HPP_
 #define FOXY_MATCH_ROUTE_HPP_
 
-#include <boost/hof/if.hpp>
-#include <boost/hof/eval.hpp>
-#include <boost/hof/first_of.hpp>
+#include <tuple>
+#include <utility>
+
+#include <boost/hof/partial.hpp>
 
 #include <boost/spirit/include/qi_parse.hpp>
 
@@ -19,27 +20,29 @@ namespace foxy
 {
 namespace detail
 {
-template <typename Rule, typename Handler>
+template <typename Rule, typename Handler, typename ...Args>
 auto invoke_with_no_attr(
   string_view const  sv,
   Rule        const& rule,
-  Handler     const& handler
+  Handler     const& handler,
+  Args&&...          args
 ) -> bool
 {
   namespace qi = boost::spirit::qi;
 
   auto const is_match = qi::parse(sv.begin(), sv.end(), rule);
   if (is_match) {
-    handler();
+    handler(std::forward<Args>(args)...);
   }
   return is_match;
 }
 
-template <typename Rule, typename Handler>
+template <typename Rule, typename Handler, typename ...Args>
 auto invoke_with_attr(
   string_view const  sv,
   Rule        const& rule,
-  Handler     const& handler
+  Handler     const& handler,
+  Args&&...          args
 ) -> bool
 {
   namespace qi = boost::spirit::qi;
@@ -51,45 +54,38 @@ auto invoke_with_attr(
   attr_type  attr;
   auto const is_match = qi::parse(sv.begin(), sv.end(), rule, attr);
   if (is_match) {
-    handler(attr);
+    handler(attr, std::forward<Args>(args)...);
   }
   return is_match;
 }
 
-template <typename Route>
-auto match_and_invoke(
-  string_view const  sv,
-  Route       const& route
-) -> bool
+struct match_and_invoke
 {
-  namespace hof = boost::hof;
+  template <typename Route, typename ...Args>
+  auto operator()(
+    string_view const  sv,
+    Route       const& route,
+    Args&&...          args) const -> bool
+  {
+    auto const& rule    = route.rule;
+    auto const& handler = route.handler;
 
-  // lol non-TMP code
-  //
-  auto const& rule    = route.rule;
-  auto const& handler = route.handler;
+    using rule_type           = std::decay_t<decltype(rule)>;
+    using sig_type            = typename rule_type::sig_type;
+    using has_void_return     =
+      boost::callable_traits::has_void_return<sig_type>;
+    using has_non_void_return = negation<has_void_return>;
 
-  // lol TMP
-  //
-  using rule_type           = std::decay_t<decltype(rule)>;
-  using sig_type            = typename rule_type::sig_type;
-  using has_void_return     = boost::callable_traits::has_void_return<sig_type>;
-  using has_non_void_return = negation<has_void_return>;
+    if constexpr (has_void_return::value) {
+      return detail::invoke_with_no_attr(
+        sv, rule, handler, std::forward<Args>(args)...);
+    } else {
+      return detail::invoke_with_attr(
+        sv, rule, handler, std::forward<Args>(args)...);
+    }
+  }
+};
 
-  return hof::eval(
-    hof::first_of(
-      hof::if_(has_void_return())(
-        [&, sv](auto const id) -> bool
-        {
-          return detail::invoke_with_no_attr(sv, id(rule), id(handler));
-        }),
-      hof::if_(has_non_void_return())(
-        [&, sv](auto const id) -> bool
-        {
-          return detail::invoke_with_attr(sv, id(rule), id(handler));
-        })
-    ));
-}
 } // detail
 
 /**
@@ -104,19 +100,31 @@ auto match_and_invoke(
  * Upon successful match, the route's associated handler
  * is invoked and the function returns
  */
-template <typename RouteSequence>
+template <
+  typename RouteSequence,
+  typename ...Args
+>
 auto match_route(
   string_view   const  sv,
-  RouteSequence const& routes
+  RouteSequence const& routes,
+  Args&&...            args
 ) -> bool
 {
+  namespace hof    = boost::hof;
   namespace fusion = boost::fusion;
+
+  auto matcher = hof::partial(detail::match_and_invoke())(sv);
 
   return fusion::any(
     routes,
-    [sv](auto const& route) -> bool
+    [matcher, arg_tuple = std::forward_as_tuple(args...)]
+    (auto const& route) -> bool
     {
-      return detail::match_and_invoke(sv, route);
+      if constexpr (std::tuple_size_v<decltype(arg_tuple)> == 0) {
+        return matcher(route);
+      } else {
+        return std::apply(matcher(route), arg_tuple)();
+      }
     });
 }
 
