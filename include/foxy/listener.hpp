@@ -27,12 +27,14 @@ auto listener(
   using boost::asio::ip::tcp;
   using boost::system::error_code;
 
-  auto ec       = error_code();
-  auto token    = make_redirect_error_token(co_await this_coro::token(), ec);
+  auto ec          = error_code();
+  auto token       = co_await this_coro::token();
+  auto error_token = make_redirect_error_token(token, ec);
+
   auto socket   = tcp::socket(io);
   auto acceptor = tcp::acceptor(io, endpoint);
 
-  boost::ignore_unused(co_await acceptor.async_accept(socket, token));
+  co_await acceptor.async_accept(socket, error_token);
   if (ec) {
     fail(ec, "accept");
   }

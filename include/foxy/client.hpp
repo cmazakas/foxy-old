@@ -52,16 +52,16 @@ auto send_request_op(
 {
   using boost::asio::ip::tcp;
 
-  namespace asio = boost::asio;
-  namespace http = boost::beast::http;
-
+  namespace asio  = boost::asio;
+  namespace http  = boost::beast::http;
   namespace beast = boost::beast;
 
-  auto ec       = boost::system::error_code();
-  auto token    = make_redirect_error_token(co_await this_coro::token(), ec);
-  auto resolver = tcp::resolver(stream.get_executor().context());
+  auto ec          = boost::system::error_code();
+  auto token       = co_await this_coro::token();
+  auto error_token = make_redirect_error_token(token, ec);
+  auto resolver    = tcp::resolver(stream.get_executor().context());
 
-  auto const results = co_await resolver.async_resolve(host, port, token);
+  auto const results = co_await resolver.async_resolve(host, port, error_token);
   if (ec) {
     co_return handler(ec, http::response<ResBody, ResFields>());
   }
@@ -69,13 +69,14 @@ auto send_request_op(
   boost::ignore_unused(co_await asio::async_connect(
     stream,
     results.begin(), results.end(),
-    token));
+    error_token));
 
   if (ec) {
     co_return handler(ec, http::response<ResBody, ResFields>());
   }
 
-  boost::ignore_unused(co_await http::async_write(stream, request, token));
+  boost::ignore_unused(
+    co_await http::async_write(stream, request, error_token));
   if (ec) {
     co_return handler(ec, http::response<ResBody, ResFields>());
   }
@@ -84,7 +85,8 @@ auto send_request_op(
   auto response = http::response<ResBody, ResFields>();
 
   boost::ignore_unused(
-    co_await http::async_read(stream, buffer, response, token));
+    co_await http::async_read(stream, buffer, response, error_token));
+
   if (ec) {
     co_return handler(ec, http::response<ResBody, ResFields>());
   }

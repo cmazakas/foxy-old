@@ -45,6 +45,9 @@ public:
   {
   }
 
+  explicit
+  session(socket_type socket, Routes const&& routes) = delete;
+
   auto start(void) -> void
   {
     co_spawn(
@@ -64,20 +67,21 @@ public:
       detached);
   }
 
-  auto request_handler(void) -> awaitable<void, strand_type>
+  auto request_handler() -> awaitable<void, strand_type>
   {
     namespace http  = boost::beast::http;
     namespace beast = boost::beast;
 
-    auto ec    = boost::system::error_code();
-    auto token = make_redirect_error_token(co_await this_coro::token(), ec);
+    auto ec          = boost::system::error_code();
+    auto token       = co_await this_coro::token();
+    auto error_token = make_redirect_error_token(token, ec);;
 
     header_parser<> parser;
 
     auto buffer = beast::flat_buffer();
 
     boost::ignore_unused(
-      co_await http::async_read_header(socket_, buffer, parser, token));
+      co_await http::async_read_header(socket_, buffer, parser, error_token));
     if (ec) {
       co_return fail(ec, "read header");
     }
@@ -86,8 +90,6 @@ public:
       parser.get().target(),
       routes_,
       ec, socket_, parser);
-
-    co_return;
   }
 
   auto timeout(void) -> awaitable<void, strand_type>
