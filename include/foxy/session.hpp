@@ -74,14 +74,20 @@ public:
 
     auto ec          = boost::system::error_code();
     auto token       = co_await this_coro::token();
-    auto error_token = make_redirect_error_token(token, ec);;
+    auto error_token = make_redirect_error_token(token, ec);
+
+    auto executor = co_await this_coro::executor();
 
     header_parser<> parser;
 
     auto buffer = beast::flat_buffer();
 
     boost::ignore_unused(
-      co_await http::async_read_header(socket_, buffer, parser, error_token));
+      co_await http::async_read_header(
+        socket_,
+        buffer, parser,
+        error_token));
+
     if (ec) {
       co_return fail(ec, "read header");
     }
@@ -89,6 +95,7 @@ public:
     match_route(
       parser.get().target(),
       routes_,
+      executor,
       ec, socket_, parser);
   }
 

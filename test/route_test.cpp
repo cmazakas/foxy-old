@@ -1,6 +1,8 @@
 #include "foxy/route.hpp"
 #include "foxy/match_route.hpp"
 
+#include <boost/asio/executor.hpp>
+
 #include <boost/spirit/include/qi_int.hpp>
 #include <boost/spirit/include/qi_lit.hpp>
 #include <boost/spirit/include/qi_rule.hpp>
@@ -8,7 +10,8 @@
 
 #include <catch.hpp>
 
-namespace qi = boost::spirit::qi;
+namespace qi   = boost::spirit::qi;
+namespace asio = boost::asio;
 
 TEST_CASE("Our router")
 {
@@ -31,7 +34,9 @@ TEST_CASE("Our router")
 
     auto const* target = "/1337";
 
-    REQUIRE(foxy::match_route(target, routes));
+    auto executor = asio::executor();
+
+    REQUIRE(foxy::match_route(target, routes, executor));
     REQUIRE(was_called);
   }
 
@@ -51,7 +56,9 @@ TEST_CASE("Our router")
 
     auto const* target = "/rawr";
 
-    REQUIRE(!foxy::match_route(target, routes));
+    auto executor = asio::executor();
+
+    REQUIRE(!foxy::match_route(target, routes, executor));
     REQUIRE(!was_called);
   }
 }

@@ -7,6 +7,8 @@
 #include <boost/hof/unpack.hpp>
 #include <boost/hof/partial.hpp>
 
+#include <boost/asio/is_executor.hpp>
+
 #include <boost/spirit/include/qi_parse.hpp>
 
 #include <boost/fusion/algorithm/query/any.hpp>
@@ -14,6 +16,7 @@
 #include <boost/callable_traits/return_type.hpp>
 #include <boost/callable_traits/has_void_return.hpp>
 
+#include "foxy/coroutine.hpp"
 #include "foxy/string_view.hpp"
 #include "foxy/type_traits.hpp"
 
@@ -21,28 +24,39 @@ namespace foxy
 {
 namespace detail
 {
-template <typename Rule, typename Handler, typename ...Args>
+template <typename Rule, typename Handler, typename Executor, typename ...Args>
 auto invoke_with_no_attr(
   string_view const  sv,
   Rule        const& rule,
   Handler     const& handler,
+  Executor    const& executor,
   Args&&...          args
 ) -> bool
 {
   namespace qi = boost::spirit::qi;
 
+  using handler_return_type = boost::callable_traits::return_type_t<Handler>;
+
   auto const is_match = qi::parse(sv.begin(), sv.end(), rule);
   if (is_match) {
-    handler(std::forward<Args>(args)...);
+    if constexpr (is_awaitable_v<handler_return_type>) {
+      co_spawn(
+        executor,
+        [&]() { return handler(std::forward<Args>(args)...); },
+        detached);
+    } else {
+      handler(std::forward<Args>(args)...);
+    }
   }
   return is_match;
 }
 
-template <typename Rule, typename Handler, typename ...Args>
+template <typename Rule, typename Handler, typename Executor, typename ...Args>
 auto invoke_with_attr(
   string_view const  sv,
   Rule        const& rule,
   Handler     const& handler,
+  Executor    const& executor,
   Args&&...          args
 ) -> bool
 {
@@ -52,21 +66,31 @@ auto invoke_with_attr(
   using sig_type  = typename rule_type::sig_type;
   using attr_type = boost::callable_traits::return_type_t<sig_type>;
 
+  using handler_return_type = boost::callable_traits::return_type_t<Handler>;
+
   attr_type  attr;
   auto const is_match = qi::parse(sv.begin(), sv.end(), rule, attr);
   if (is_match) {
-    handler(std::forward<Args>(args)..., attr);
+    if constexpr (is_awaitable_v<handler_return_type>) {
+      co_spawn(
+        executor,
+        [&]() { return handler(std::forward<Args>(args)..., attr); },
+        detached);
+    } else {
+      handler(std::forward<Args>(args)..., attr);
+    }
   }
   return is_match;
 }
 
-template <typename ...Args>
+template <typename Executor, typename ...Args>
 struct match_and_invoke
 {
   template <typename Route>
   auto operator()(
     string_view const  sv,
     Route       const& route,
+    Executor    const& executor,
     Args&&...          args) const -> bool
   {
     auto const& rule    = route.rule;
@@ -79,10 +103,10 @@ struct match_and_invoke
 
     if constexpr (has_void_return::value) {
       return detail::invoke_with_no_attr(
-        sv, rule, handler, std::forward<Args>(args)...);
+        sv, rule, handler, executor, std::forward<Args>(args)...);
     } else {
       return detail::invoke_with_attr(
-        sv, rule, handler, std::forward<Args>(args)...);
+        sv, rule, handler, executor, std::forward<Args>(args)...);
     }
   }
 };
@@ -103,31 +127,37 @@ struct match_and_invoke
  */
 template <
   typename RouteSequence,
+  typename Executor,
   typename ...Args
 >
 auto match_route(
   string_view   const  sv,
   RouteSequence const& routes,
+  Executor      const& executor,
   Args&&...            args
 ) -> bool
 {
+  static_assert(
+    boost::asio::is_executor<Executor>::value,
+    "Type traits of Executor requirement not met");
+
   namespace hof    = boost::hof;
   namespace fusion = boost::fusion;
 
-  auto matcher = hof::partial(detail::match_and_invoke<Args...>());
+  auto matcher = hof::partial(detail::match_and_invoke<Executor, Args...>());
 
   return fusion::any(
     routes,
     [
-      sv, matcher,
+      sv, matcher, executor,
       arg_tuple = std::forward_as_tuple(std::forward<Args>(args)...)
     ]
     (auto const& route) -> bool
     {
       if constexpr (std::tuple_size_v<decltype(arg_tuple)> == 0) {
-        return matcher(sv, route);
+        return matcher(sv, route, executor);
       } else {
-        return hof::unpack(matcher(sv, route))(std::move(arg_tuple));
+        return hof::unpack(matcher(sv, route, executor))(std::move(arg_tuple));
       }
     });
 }

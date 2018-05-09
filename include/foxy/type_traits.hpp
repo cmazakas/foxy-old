@@ -5,6 +5,8 @@
 #include <boost/beast/http/type_traits.hpp>
 #include <boost/beast/core/type_traits.hpp>
 
+#include "foxy/coroutine.hpp"
+
 namespace foxy
 {
 template <typename Stream>
@@ -33,6 +35,26 @@ struct negation : bool_constant<!bool(B::value)> { };
 template <typename B>
 constexpr
 bool const negation_v = negation<B>::value;
+
+namespace detail
+{
+
+auto _is_awaitable(void const*) -> std::false_type;
+
+template <typename T, typename Executor>
+auto _is_awaitable(awaitable<T, Executor> const*) -> std::true_type;
+
+} // detail
+
+template <typename T>
+struct is_awaitable : decltype(detail::_is_awaitable(static_cast<T*>(nullptr)))
+{
+};
+
+template <typename T>
+inline constexpr
+bool is_awaitable_v = is_awaitable<T>::value;
+
 } // foxy
 
 #endif // FOXY_TYPE_TRAITS_HPP_
