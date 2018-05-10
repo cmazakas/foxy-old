@@ -11,6 +11,7 @@
 
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/write.hpp>
+#include <boost/beast/http/status.hpp>
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/string_body.hpp>
 
@@ -42,23 +43,37 @@ TEST_CASE("Our listener type")
       foxy::make_route(
         int_rule,
         [](
-          boost::system::error_code const& ec,
-          tcp::socket&                     stream,
-          foxy::header_parser<>&           parser,
-          int const                        user_id) -> foxy::awaitable<void, strand_type>
+          boost::system::error_code const ec,
+          tcp::socket&                    stream,
+          beast::flat_buffer&             buffer,
+          foxy::header_parser<>&          parser,
+          int const                       user_id) -> void
         {
-          auto token = co_await foxy::this_coro::token();
+          std::cout << "actually in the user's handler lol...\n";
 
-          auto res = http::response<http::string_body>();
+          std::cout << "buffer size is: " << buffer.size() << '\n';
+          std::cout << std::boolalpha << "is the header done? " << parser.is_header_done() << '\n';
+
+          std::cout << "the user's parser lives at : " << std::addressof(parser) << '\n';
+
+          http::read(stream, buffer, parser);
+
+          auto res = http::response<http::string_body>(http::status::ok, 11);
           res.body() = "Your user id is : " + std::to_string(user_id) + "\n";
           res.prepare_payload();
 
-          co_await http::async_write(stream, res, token);
+          std::cout << "gonna write back to the stream now...\n";
+
+          try {
+            http::write(stream, res);
+          } catch (std::exception const& e) {
+            std::cerr << e.what() << '\n';
+          }
+
+          std::cout << "closing the stream now...\n";
 
           stream.shutdown(tcp::socket::shutdown_both);
           stream.close();
-
-          co_return;
         }
       ));
 

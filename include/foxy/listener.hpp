@@ -21,9 +21,9 @@ namespace foxy
 
 template <typename Routes>
 auto listener(
-  boost::asio::io_context&              io,
-  boost::asio::ip::tcp::endpoint const& endpoint,
-  Routes const&                         routes
+  boost::asio::io_context&       io,
+  boost::asio::ip::tcp::endpoint endpoint,
+  Routes const&                  routes
 ) -> awaitable<void>
 {
   using boost::asio::ip::tcp;

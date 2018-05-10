@@ -36,6 +36,9 @@ private:
   strand_type   strand_;
   Routes const& routes_;
 
+  boost::beast::flat_buffer buffer_;
+  header_parser<>           parser_;
+
 public:
   explicit
   session(socket_type socket, Routes const& routes)
@@ -78,25 +81,27 @@ public:
 
     auto executor = co_await this_coro::executor();
 
-    header_parser<> parser;
+    // header_parser<> parser;
 
-    auto buffer = beast::flat_buffer();
+    // auto buffer = beast::flat_buffer();
 
-    boost::ignore_unused(
-      co_await http::async_read_header(
-        socket_,
-        buffer, parser,
-        error_token));
+    co_await http::async_read_header(
+      socket_,
+      buffer_, parser_,
+      error_token);
 
     if (ec) {
       co_return fail(ec, "read header");
     }
 
+    std::cout << "header should be done lol " << std::boolalpha << parser_.is_header_done() << '\n';
+    std::cout << "parser lives at : " << std::addressof(parser_) << '\n';
+
     match_route(
-      parser.get().target(),
+      parser_.get().target(),
       routes_,
       executor,
-      ec, socket_, parser);
+      ec, socket_, buffer_, parser_);
   }
 
   auto timeout(void) -> awaitable<void, strand_type>
