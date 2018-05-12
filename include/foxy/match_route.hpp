@@ -29,7 +29,7 @@ auto invoke_with_no_attr(
   string_view const  sv,
   Rule        const& rule,
   Handler     const& handler,
-  Executor    const& executor,
+  Executor& executor,
   Args&&...          args
 ) -> bool
 {
@@ -40,9 +40,10 @@ auto invoke_with_no_attr(
   auto const is_match = qi::parse(sv.begin(), sv.end(), rule);
   if (is_match) {
     if constexpr (is_awaitable_v<handler_return_type>) {
+
       co_spawn(
         executor,
-        [&]() { return handler(std::forward<Args>(args)...); },
+        [=]() { return handler(args...); },
         detached);
     } else {
       handler(std::forward<Args>(args)...);
@@ -56,7 +57,7 @@ auto invoke_with_attr(
   string_view const  sv,
   Rule        const& rule,
   Handler     const& handler,
-  Executor    const& executor,
+  Executor& executor,
   Args&&...          args
 ) -> bool
 {
@@ -72,9 +73,10 @@ auto invoke_with_attr(
   auto const is_match = qi::parse(sv.begin(), sv.end(), rule, attr);
   if (is_match) {
     if constexpr (is_awaitable_v<handler_return_type>) {
+
       co_spawn(
         executor,
-        [&]() { return handler(std::forward<Args>(args)..., attr); },
+        [=]() { return handler(args..., attr); },
         detached);
     } else {
       handler(std::forward<Args>(args)..., attr);
@@ -86,11 +88,17 @@ auto invoke_with_attr(
 template <typename Executor, typename ...Args>
 struct match_and_invoke
 {
+  Executor& executor;
+
+  match_and_invoke(Executor& executor_)
+  : executor(executor_)
+  {
+  }
+
   template <typename Route>
   auto operator()(
     string_view const  sv,
     Route       const& route,
-    Executor    const& executor,
     Args&&...          args) const -> bool
   {
     auto const& rule    = route.rule;
@@ -132,8 +140,8 @@ template <
 >
 auto match_route(
   string_view   const  sv,
-  RouteSequence const& routes,
-  Executor      const& executor,
+  RouteSequence const routes,
+  Executor& executor,
   Args&&...            args
 ) -> bool
 {
@@ -144,20 +152,20 @@ auto match_route(
   namespace hof    = boost::hof;
   namespace fusion = boost::fusion;
 
-  auto matcher = hof::partial(detail::match_and_invoke<Executor, Args...>());
+  auto matcher = hof::partial(detail::match_and_invoke<Executor, Args...>(executor));
 
   return fusion::any(
     routes,
     [
-      sv, matcher, executor,
-      arg_tuple = std::forward_as_tuple(std::forward<Args>(args)...)
+      sv, matcher, &executor,
+      &args...
     ]
     (auto const& route) -> bool
     {
-      if constexpr (std::tuple_size_v<decltype(arg_tuple)> == 0) {
-        return matcher(sv, route, executor);
+      if constexpr (sizeof...(args) == 0) {
+        return matcher(sv, route);
       } else {
-        return hof::unpack(matcher(sv, route, executor))(std::move(arg_tuple));
+        return matcher(sv, route)(std::forward<Args>(args)...);
       }
     });
 }

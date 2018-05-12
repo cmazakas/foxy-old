@@ -23,41 +23,40 @@
 namespace foxy
 {
 
-template <typename Routes>
-struct session : public std::enable_shared_from_this<session<Routes>>
+struct session : public std::enable_shared_from_this<session>
 {
 public:
+  using buffer_type = boost::beast::flat_buffer;
   using socket_type = boost::asio::ip::tcp::socket;
   using strand_type = boost::asio::strand<
     boost::asio::io_context::executor_type>;
 
-private:
-  socket_type   socket_;
-  strand_type   strand_;
-  Routes const& routes_;
-
-  boost::beast::flat_buffer buffer_;
-  header_parser<>           parser_;
+  using timer_type = boost::asio::steady_timer;
 
 public:
-  explicit
-  session(socket_type socket, Routes const& routes)
+  socket_type     socket_;
+  strand_type     strand_;
+  timer_type      timer_;
+  buffer_type     buffer_;
+  header_parser<> parser_;
+
+public:
+
+  session(socket_type socket)
   : socket_(std::move(socket))
-  , strand_(socket.get_executor())
-  , routes_(routes)
+  , strand_(socket_.get_executor())
+  , timer_(socket_.get_executor().context())
   {
   }
 
-  explicit
-  session(socket_type socket, Routes const&& routes) = delete;
-
-  auto start(void) -> void
+  template <typename Routes>
+  auto start(Routes const routes) -> void
   {
     co_spawn(
       strand_,
-      [self = this->shared_from_this()]()
+      [self = this->shared_from_this(), routes]()
       {
-        return self->request_handler();
+        return self->request_handler(routes);
       },
       detached);
 
@@ -70,10 +69,13 @@ public:
       detached);
   }
 
-  auto request_handler() -> awaitable<void, strand_type>
+  template <typename Routes>
+  auto request_handler(Routes const routes) -> awaitable<void, strand_type>
   {
     namespace http  = boost::beast::http;
     namespace beast = boost::beast;
+
+    auto self = this->shared_from_this();
 
     auto ec          = boost::system::error_code();
     auto token       = co_await this_coro::token();
@@ -81,27 +83,20 @@ public:
 
     auto executor = co_await this_coro::executor();
 
-    // header_parser<> parser;
-
-    // auto buffer = beast::flat_buffer();
-
     co_await http::async_read_header(
       socket_,
       buffer_, parser_,
-      error_token);
+      token);
 
     if (ec) {
       co_return fail(ec, "read header");
     }
 
-    std::cout << "header should be done lol " << std::boolalpha << parser_.is_header_done() << '\n';
-    std::cout << "parser lives at : " << std::addressof(parser_) << '\n';
-
     match_route(
       parser_.get().target(),
-      routes_,
-      executor,
-      ec, socket_, buffer_, parser_);
+      routes,
+      strand_,
+      ec, self);
   }
 
   auto timeout(void) -> awaitable<void, strand_type>

@@ -29,49 +29,19 @@ auto listener(
   using boost::asio::ip::tcp;
   using boost::system::error_code;
 
-  std::cout << "beginning execution...\n";
-
   auto ec          = error_code();
   auto token       = co_await this_coro::token();
   auto error_token = make_redirect_error_token(token, ec);
 
-  std::cout << "building socket and acceptor...\n";
-
   auto socket   = tcp::socket(io);
+  auto acceptor = tcp::acceptor(io, endpoint);
 
-  std::cout << "built socket...\n";
-
-  try {
-    auto acceptor = tcp::acceptor(io, endpoint);
-
-    std::cout << "listening now...\n";
-
-    co_await acceptor.async_accept(socket, error_token);
-    if (ec) {
-      fail(ec, "accept");
-    }
-
-    std::cout << "accepted connection...\n";
-
-    std::make_shared<session<Routes>>(std::move(socket), routes)->start();
-
-  } catch (std::exception const& e) {
-    std::cerr << e.what() << '\n';
-    throw e ;
+  co_await acceptor.async_accept(socket, error_token);
+  if (ec) {
+    return fail(ec, "accept");
   }
 
-
-
-
-  // for (;;) {
-  //   boost::ignore_unused(co_await acceptor.async_accept(socket, token));
-  //   if (ec) {
-  //     fail(ec, "accept");
-  //     continue;
-  //   }
-
-  //   std::make_shared<session<Routes>>(std::move(socket), routes)->start();
-  // }
+  std::make_shared<session>(std::move(socket))->start(routes);
 }
 
 } // foxy

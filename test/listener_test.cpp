@@ -44,47 +44,36 @@ TEST_CASE("Our listener type")
         int_rule,
         [](
           boost::system::error_code const ec,
-          tcp::socket&                    stream,
-          beast::flat_buffer&             buffer,
-          foxy::header_parser<>&          parser,
-          int const                       user_id) -> void
+          std::shared_ptr<foxy::session> session,
+          int const user_id
+        ) -> foxy::awaitable<void, strand_type>
         {
-          std::cout << "actually in the user's handler lol...\n";
+          auto& s      = *session;
+          auto& buffer = s.buffer_;
+          auto& parser = s.parser_;
+          auto& stream = s.socket_;
 
-          std::cout << "buffer size is: " << buffer.size() << '\n';
-          std::cout << std::boolalpha << "is the header done? " << parser.is_header_done() << '\n';
+          auto token = co_await foxy::this_coro::token();
 
-          std::cout << "the user's parser lives at : " << std::addressof(parser) << '\n';
-
-          http::read(stream, buffer, parser);
+          co_await http::async_read(stream, buffer, parser, token);
 
           auto res = http::response<http::string_body>(http::status::ok, 11);
           res.body() = "Your user id is : " + std::to_string(user_id) + "\n";
           res.prepare_payload();
 
-          std::cout << "gonna write back to the stream now...\n";
-
-          try {
-            http::write(stream, res);
-          } catch (std::exception const& e) {
-            std::cerr << e.what() << '\n';
-          }
-
-          std::cout << "closing the stream now...\n";
+          co_await http::async_write(stream, res, token);
 
           stream.shutdown(tcp::socket::shutdown_both);
           stream.close();
+
+          co_return;
         }
       ));
-
-    std::cout << "launching server...\n";
 
     foxy::co_spawn(
       io,
       [&]()
       {
-        std::cout << "calling listener function...\n";
-
         return foxy::listener(
           io,
           tcp::endpoint(asio::ip::address_v4({127, 0, 0, 1}), 1337),
@@ -93,6 +82,5 @@ TEST_CASE("Our listener type")
       foxy::detached);
 
     io.run();
-    std::cout << "io context is done working now\n";
   }
 }
