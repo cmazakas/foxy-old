@@ -1,16 +1,12 @@
 #ifndef FOXY_MATCH_ROUTE_HPP_
 #define FOXY_MATCH_ROUTE_HPP_
 
-#include <tuple>
+
 #include <utility>
 
-#include <boost/hof/unpack.hpp>
 #include <boost/hof/partial.hpp>
-
 #include <boost/asio/is_executor.hpp>
-
 #include <boost/spirit/include/qi_parse.hpp>
-
 #include <boost/fusion/algorithm/query/any.hpp>
 
 #include <boost/callable_traits/return_type.hpp>

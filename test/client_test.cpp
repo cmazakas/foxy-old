@@ -4,7 +4,6 @@
 #include <string>
 #include <iostream>
 
-
 #include <boost/asio/io_context.hpp>
 
 #include <boost/beast/http/verb.hpp>
@@ -38,8 +37,8 @@ auto make_req(
     req,
     token);
 
-  // std::cout << "Request successfully completed!\n";
-  // std::cout << res << '\n';
+  REQUIRE(res.result_int() == 200);
+  REQUIRE(res.body().size() > 0);
 }
 
 }

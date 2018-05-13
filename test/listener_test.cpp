@@ -9,15 +9,19 @@
 #include <boost/spirit/include/qi_rule.hpp>
 #include <boost/spirit/include/qi_sequence.hpp>
 
+#include <boost/beast/http/verb.hpp>
+#include <boost/beast/http/field.hpp>
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/write.hpp>
 #include <boost/beast/http/status.hpp>
 #include <boost/beast/http/message.hpp>
+
+#include <boost/beast/http/empty_body.hpp>
 #include <boost/beast/http/string_body.hpp>
 
 #include "foxy/route.hpp"
+#include "foxy/client.hpp"
 #include "foxy/coroutine.hpp"
-#include "foxy/async_read_body.hpp"
 
 #include <catch.hpp>
 
@@ -49,9 +53,9 @@ TEST_CASE("Our listener type")
         ) -> foxy::awaitable<void, strand_type>
         {
           auto& s      = *session;
-          auto& buffer = s.buffer_;
-          auto& parser = s.parser_;
-          auto& stream = s.socket_;
+          auto& buffer = s.buffer();
+          auto& parser = s.parser();
+          auto& stream = s.stream();
 
           auto token = co_await foxy::this_coro::token();
 
@@ -72,12 +76,33 @@ TEST_CASE("Our listener type")
 
     foxy::co_spawn(
       io,
-      [&]()
+      [&]() -> foxy::awaitable<void>
       {
-        return foxy::listener(
+        auto token = co_await foxy::this_coro::token();
+
+        foxy::co_spawn(
           io,
-          tcp::endpoint(asio::ip::address_v4({127, 0, 0, 1}), 1337),
-          routes);
+          [&]()
+          {
+            return foxy::listener(
+              io,
+              tcp::endpoint(asio::ip::address_v4({127, 0, 0, 1}), 1337),
+              routes);
+          },
+          foxy::detached);
+
+        auto request = http::request<http::empty_body>(
+          http::verb::get, "/1337", 11);
+
+        auto response = co_await foxy::async_send_request<
+          http::string_body, http::fields
+        >(
+          io, "127.0.0.1", "1337", request, token);
+
+        REQUIRE(response.result_int() == 200);
+        REQUIRE(response.body().size() > 0);
+
+        co_return;
       },
       foxy::detached);
 
