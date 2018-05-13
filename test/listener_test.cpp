@@ -101,6 +101,7 @@ TEST_CASE("Our listener type")
 
         REQUIRE(response.result_int() == 200);
         REQUIRE(response.body().size() > 0);
+        REQUIRE(response.body() == "Your user id is : 1337\n");
 
         co_return;
       },
