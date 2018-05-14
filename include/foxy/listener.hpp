@@ -36,12 +36,12 @@ auto listener(
   auto socket   = tcp::socket(io);
   auto acceptor = tcp::acceptor(io, endpoint);
 
-  co_await acceptor.async_accept(socket, error_token);
+  boost::ignore_unused(co_await acceptor.async_accept(socket, error_token));
   if (ec) {
-    return fail(ec, "accept");
+    co_return fail(ec, "accept");
   }
 
-  std::make_shared<session>(std::move(socket))->start(routes);
+  std::make_shared<session>(std::move(socket))->start<decltype(routes)>(routes);
 }
 
 } // foxy

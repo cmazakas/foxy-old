@@ -59,13 +59,14 @@ TEST_CASE("Our listener type")
 
           auto token = co_await foxy::this_coro::token();
 
-          co_await http::async_read(stream, buffer, parser, token);
+          boost::ignore_unused(
+            co_await http::async_read(stream, buffer, parser, token));
 
           auto res = http::response<http::string_body>(http::status::ok, 11);
           res.body() = "Your user id is : " + std::to_string(user_id) + "\n";
           res.prepare_payload();
 
-          co_await http::async_write(stream, res, token);
+          boost::ignore_unused(co_await http::async_write(stream, res, token));
 
           stream.shutdown(tcp::socket::shutdown_both);
           stream.close();

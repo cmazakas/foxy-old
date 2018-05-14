@@ -91,7 +91,7 @@ auto send_request_op(
     co_return handler(ec, http::response<ResBody, ResFields>());
   }
 
-  stream.shutdown(tcp::socket::shutdown_both, ec);
+  stream.shutdown(tcp::socket::shutdown_send, ec);
   if (ec) {
     co_return handler(ec, http::response<ResBody, ResFields>());
   }

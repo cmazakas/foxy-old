@@ -52,7 +52,7 @@ public:
       strand_,
       [self = this->shared_from_this(), routes]()
       {
-        return self->request_handler(routes);
+        return self->request_handler<decltype(routes)>(routes);
       },
       detached);
 
@@ -77,10 +77,10 @@ public:
     auto token       = co_await this_coro::token();
     auto executor = co_await this_coro::executor();
 
-    co_await http::async_read_header(
+    boost::ignore_unused(co_await http::async_read_header(
       stream_,
       buffer_, parser_,
-      token);
+      token));
 
     match_route(
       parser_.get().target(),
