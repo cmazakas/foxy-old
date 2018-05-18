@@ -1,27 +1,26 @@
-#include "foxy/listener.hpp"
-
 #include <string>
 
 #include <boost/asio/io_context.hpp>
+
+#include <boost/spirit/include/qi_raw.hpp>
+#include <boost/spirit/include/qi_char_.hpp>
+#include <boost/spirit/include/qi_kleene.hpp>
 
 #include <boost/spirit/include/qi_int.hpp>
 #include <boost/spirit/include/qi_lit.hpp>
 #include <boost/spirit/include/qi_rule.hpp>
 #include <boost/spirit/include/qi_sequence.hpp>
 
-#include <boost/beast/http/verb.hpp>
-#include <boost/beast/http/field.hpp>
-#include <boost/beast/http/read.hpp>
-#include <boost/beast/http/write.hpp>
-#include <boost/beast/http/status.hpp>
-#include <boost/beast/http/message.hpp>
+#include <boost/spirit/home/qi/detail/assign_to.hpp>
 
-#include <boost/beast/http/empty_body.hpp>
-#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http.hpp>
 
 #include "foxy/route.hpp"
 #include "foxy/client.hpp"
+#include "foxy/listener.hpp"
 #include "foxy/coroutine.hpp"
+
+#include "foxy/handlers/not_found.hpp"
 
 #include <catch.hpp>
 
@@ -42,6 +41,8 @@ TEST_CASE("Our listener type")
     asio::io_context io;
 
     auto const int_rule = qi::rule<char const*, int()>("/" >> qi::int_);
+
+    auto const not_found_rule = qi::rule<char const*>(*qi::char_);
 
     auto const routes = foxy::make_routes(
       foxy::make_route(
@@ -73,7 +74,8 @@ TEST_CASE("Our listener type")
 
           co_return;
         }
-      ));
+      ),
+      foxy::handlers::not_found());
 
     foxy::co_spawn(
       io,
@@ -103,6 +105,8 @@ TEST_CASE("Our listener type")
         REQUIRE(response.result_int() == 200);
         REQUIRE(response.body().size() > 0);
         REQUIRE(response.body() == "Your user id is : 1337\n");
+
+        io.stop();
 
         co_return;
       },
