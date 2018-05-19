@@ -19,7 +19,6 @@ add_library(
   STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/log.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/session.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/not_found.cpp
 )
 
 if (MSVC)

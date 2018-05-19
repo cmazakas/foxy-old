@@ -20,8 +20,6 @@
 #include "foxy/listener.hpp"
 #include "foxy/coroutine.hpp"
 
-#include "foxy/handlers/not_found.hpp"
-
 #include <catch.hpp>
 
 namespace qi    = boost::spirit::qi;
@@ -74,8 +72,7 @@ TEST_CASE("Our listener type")
 
           co_return;
         }
-      ),
-      foxy::handlers::not_found());
+      ));
 
     foxy::co_spawn(
       io,
