@@ -132,34 +132,34 @@ TEST_CASE("Our listener type")
           },
           foxy::detached);
 
-        // auto const* host = "127.0.0.1";
-        // auto const* port = "1337";
+        auto const* host = "127.0.0.1";
+        auto const* port = "1337";
 
-        // // send two requests to our server
-        // //
-        // auto request = http::request<http::empty_body>(
-        //   http::verb::get, "/1337", 11);
+        // send two requests to our server
+        //
+        auto request = http::request<http::empty_body>(
+          http::verb::get, "/1337", 11);
 
-        // auto response = co_await foxy::async_send_request<
-        //   http::string_body, http::fields>(io, host, port, request, token);
+        auto response = co_await foxy::async_send_request<
+          http::string_body, http::fields>(io, host, port, request, token);
 
-        // REQUIRE(response.result_int() == 200);
-        // REQUIRE(response.body() == "Your user id is : 1337\n");
+        REQUIRE(response.result_int() == 200);
+        REQUIRE(response.body() == "Your user id is : 1337\n");
 
-        // request = http::request<http::empty_body>(
-        //   http::verb::get, "/abasdfasdf", 11);
+        request = http::request<http::empty_body>(
+          http::verb::get, "/abasdfasdf", 11);
 
-        // response = co_await foxy::async_send_request<
-        //   http::string_body, http::fields>(io, host, port, request, token);
+        response = co_await foxy::async_send_request<
+          http::string_body, http::fields>(io, host, port, request, token);
 
-        // REQUIRE(response.result_int() == 404);
-        // REQUIRE(
-        //   response.body() ==
-        //   "Could not find the following target : /abasdfasdf\n");
+        REQUIRE(response.result_int() == 404);
+        REQUIRE(
+          response.body() ==
+          "Could not find the following target : /abasdfasdf\n");
 
-        // // kill our server
-        // //
-        // io.stop();
+        // kill our server
+        //
+        io.stop();
 
         co_return;
       },
