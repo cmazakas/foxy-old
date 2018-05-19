@@ -1,11 +1,12 @@
 # Foxy
 
-Foxy is a loose attempt at creating a useful HTTP router in C++
+Foxy is an attempt at creating a useful HTTP router in C++
 using Boost.Beast (and hence Boost.Asio) along with the Boost
-library Spirit.
+library, Spirit.
 
 Spirit is an embedded domain specific language that enables the
-programmer to write human-readable parsing rules.
+programmer to write human-readable rules for parsing and generation of text.
+It also maintains type-safety and has many customization points for its output.
 
 One of the main motivations of Foxy is to make parameterized routing
 easier in C++. For example, a user would be able to register a route
@@ -29,102 +30,142 @@ namespaces used in the example correspond to shortened
 namespace paths in Asio.
 
 ```cpp
-// define a Qi rule that matches on a signed integral type
-// this time, we're not interested in the value of the int
-// in the URI
-auto const int_rule = qi::rule<char const*>{"/" >> qi::int_};
+// Foxy is built on the back of Asio; the required executor for awaitables in
+// Foxy is a simple strand type templated on the io_context's executor type
+//
+using strand_type = boost::asio::strand<
+  boost::asio::io_context::executor_type>;
 
-// create another rule that matches on any alphabetic string
-// this time, we actually want to use the value from the URI
-// and we store it as a std::string type
-auto const name_rule = qi::rule<char const*, std::string()>{"/" >> +qi::alpha};
+// our actual work-horse, the IO context
+//
+asio::io_context io;
 
-// create the request handler for the integral rule we
-// defined above
-// (does not include proper error handling)
-// connection = shared_ptr to HTTP connection object
-// this route handler accepts a string body that the
-// user can play around with
-auto const int_handler =
-  [](
-    error_code const ec,
-    http::request<http::string_body> request,
-    auto connection) -> void
+// create a rule that'll match on something such as "/1337"
+// note that this rule synthesizes an attribute
+//
+auto const int_rule = qi::rule<char const*, int()>("/" >> qi::int_);
+
+// We now create a default rule that'll handle any URI we don't care about in
+// particular
+//
+auto const not_found_rule =
+  qi::rule<char const*, foxy::string_view()>(qi::raw[*qi::char_]);
+
+// To avoid drowning in type boilerplate, we opt-in to some of Foxy's helper
+// functions.
+// Note, when a request handler is invoked by our router, the session's parser
+// already has a complete header read into it.
+// Proper semantics require reading in the rest of the message
+//
+auto const routes = foxy::make_routes(
+  foxy::make_route(
+    int_rule,
+    [](
+      boost::system::error_code const ec,
+      std::shared_ptr<foxy::session>  session,
+      int const                       user_id
+    ) -> foxy::awaitable<void, strand_type>
+    {
+      auto& s      = *session;
+      auto& buffer = s.buffer();
+      auto& parser = s.parser();
+      auto& stream = s.stream();
+
+      auto token = co_await foxy::this_coro::token();
+
+      boost::ignore_unused(
+        co_await http::async_read(stream, buffer, parser, token));
+
+      auto res = http::response<http::string_body>(http::status::ok, 11);
+      res.body() = "Your user id is : " + std::to_string(user_id) + "\n";
+      res.prepare_payload();
+
+      boost::ignore_unused(co_await http::async_write(stream, res, token));
+
+      stream.shutdown(tcp::socket::shutdown_both);
+      stream.close();
+
+      co_return;
+    }
+  ),
+  foxy::make_route(
+    not_found_rule,
+    [](
+      boost::system::error_code const ec,
+      std::shared_ptr<foxy::session>  session,
+      foxy::string_view const         target
+    ) -> foxy::awaitable<void, strand_type>
+    {
+      auto& s      = *session;
+      auto& buffer = s.buffer();
+      auto& parser = s.parser();
+      auto& stream = s.stream();
+
+      auto token = co_await foxy::this_coro::token();
+
+      boost::ignore_unused(
+        co_await http::async_read(stream, buffer, parser, token));
+
+      auto res =
+        http::response<http::string_body>(http::status::not_found, 11);
+
+      res.body() =
+        "Could not find the following target : " +
+        std::string(target.begin(), target.end()) +
+        "\n";
+
+      res.prepare_payload();
+
+      boost::ignore_unused(
+        co_await http::async_write(stream, res, token));
+
+      stream.shutdown(tcp::socket::shutdown_both);
+      stream.close();
+
+      co_return;
+    }
+  ));
+
+// spawn the server independently
+//
+foxy::co_spawn(
+  io,
+  [&]()
   {
-    // target = URI from request
-    auto const target = request.target();
+    return foxy::listener(
+      io,
+      tcp::endpoint(asio::ip::address_v4({127, 0, 0, 1}), 1337),
+      routes);
+  },
+  foxy::detached);
 
-    auto res = http::response<http::string_body>{http::status::ok, 11};
-    res.body() =
-      "Received the following request-target: " +
-      std::string{target.begin(), target.end()};
-
-    res.prepare_payload();
-
-    http::write(connection->get_socket(), res);
-
-    // required to end the session
-    // it is the user's responsiblity to manage when
-    // this is called
-    connection->run(ec);
-  };
-
-// create another handler for the string rule defined above
-auto const name_handler =
-  [](
-    error_code const ec,
-    http::request<http::empty_body> request,
-    auto connection,
-    std::string const name) -> void
-  {
-    auto res = http::response<http::string_body>{http::status::ok, 11};
-    res.body() = name;
-    res.prepare_payload();
-    http::write(connection->get_socket(), res);
-    connection->run(ec);
-  };
-
-// create our route list structure
-// note, this is currently a tuple-like structure which
-// is what allows Foxy to have its static type checking
-auto routes = foxy::make_routes(
-  foxy::make_route<http::string_body>(int_rule, route_handler),
-  foxy::make_route<http::empty_body>(name_rule, name_handler));
-
-auto const endpoint = tcp::endpoint{ip::make_address_v4(addr), port};
-
-// finally create the server and begin running it
-std::make_shared<foxy::listener<decltype(routes)>>(
-  ioc, endpoint, routes
-)->run();
+io.run();
 ```
 
 Hitting this server with some sample `curl` requests using
 Windows PowerShell yields:
 ```
-PS C:\Users\...> curl 127.0.0.1:1337/1337
+PS C:\Users\cmaza> curl 127.0.0.1:1337/1337
+
 
 StatusCode        : 200
 StatusDescription : OK
-Content           : {82, 101, 99, 101...}
+Content           : {89, 111, 117, 114...}
 RawContent        : HTTP/1.1 200 OK
-                    Content-Length: 44
+                    Content-Length: 23
 
-                    Received the following request-target: /1337
-Headers           : {[Content-Length, 44]}
-RawContentLength  : 44
+                    Your user id is : 1337
+
+Headers           : {[Content-Length, 23]}
+RawContentLength  : 23
 
 
 
-PS C:\Users\...> curl 127.0.0.1:1337/himom
-
-StatusCode        : 200
-StatusDescription : OK
-Content           : {104, 105, 109, 111...}
-RawContent        : HTTP/1.1 200 OK
-                    Content-Length: 5
-
-                    himom
-Headers           : {[Content-Length, 5]}
-RawContentLength  : 5
+PS C:\Users\cmaza> curl 127.0.0.1:1337/abasdfasdfasdfsdfewrewer
+curl : Could not find the following target : /abasdfasdfasdfsdfewrewer
+At line:1 char:1
++ curl 127.0.0.1:1337/abasdfasdfasdfsdfewrewer
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (System.Net.HttpWebRequest:HttpWebRequest) [Invoke-WebRequest], WebException
+    + FullyQualifiedErrorId : WebCmdletWebResponseException,Microsoft.PowerShell.Commands.InvokeWebRequestCommand
 ```
