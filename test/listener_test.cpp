@@ -140,8 +140,10 @@ TEST_CASE("Our listener type")
         auto request = http::request<http::empty_body>(
           http::verb::get, "/1337", 11);
 
-        auto response = co_await foxy::async_send_request<
-          http::string_body, http::fields>(io, host, port, request, token);
+        auto response = http::response<http::string_body, http::fields>();
+
+        co_await foxy::async_send_request(
+          io, host, port, request, response, token);
 
         REQUIRE(response.result_int() == 200);
         REQUIRE(response.body() == "Your user id is : 1337\n");
@@ -149,8 +151,10 @@ TEST_CASE("Our listener type")
         request = http::request<http::empty_body>(
           http::verb::get, "/abasdfasdf", 11);
 
-        response = co_await foxy::async_send_request<
-          http::string_body, http::fields>(io, host, port, request, token);
+        response = http::response<http::string_body, http::fields>();
+
+        co_await foxy::async_send_request(
+          io, host, port, request, response, token);
 
         REQUIRE(response.result_int() == 404);
         REQUIRE(

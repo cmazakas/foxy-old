@@ -10,7 +10,7 @@ target_include_directories(Catch INTERFACE ${CATCH_INCLUDE_DIR})
 find_package(
   Boost 1.67
   REQUIRED
-  COMPONENTS system coroutine context thread
+  COMPONENTS system coroutine context thread container
 )
 
 add_library(
@@ -51,6 +51,7 @@ target_link_libraries(
   Boost::boost
   Boost::coroutine
   Boost::system
+  Boost::container
 )
 
 if (MSVC)

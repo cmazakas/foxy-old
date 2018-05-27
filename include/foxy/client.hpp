@@ -1,9 +1,8 @@
 #ifndef FOXY_CLIENT_HPP_
 #define FOXY_CLIENT_HPP_
 
-#include <string>
 #include <utility>
-#include <iostream>
+#include <string_view>
 
 #include <boost/core/ignore_unused.hpp>
 
@@ -17,9 +16,7 @@
 
 #include <boost/beast/core/flat_buffer.hpp>
 
-#include <boost/beast/http/read.hpp>
-#include <boost/beast/http/write.hpp>
-#include <boost/beast/http/message.hpp>
+#include <boost/beast/http.hpp>
 
 #include "foxy/coroutine.hpp"
 
@@ -37,17 +34,18 @@ namespace detail
 {
 
 template <
-  typename ResBody, typename ResFields,
   typename AsyncStream,
   typename ReqBody, typename ReqFields,
+  typename ResBody, typename ResFields,
   typename Handler
 >
 auto send_request_op(
-  AsyncStream                                     stream,
-  std::string const&                              host,
-  std::string const&                              port,
-  boost::beast::http::request<ReqBody, ReqFields> request,
-  Handler                                         handler
+  AsyncStream                                       stream,
+  std::string_view const                            host,
+  std::string_view const                            port,
+  boost::beast::http::request<ReqBody, ReqFields>   request,
+  boost::beast::http::response<ResBody, ResFields>& response,
+  Handler                                           handler
 ) -> awaitable<void>
 {
   using boost::asio::ip::tcp;
@@ -59,11 +57,12 @@ auto send_request_op(
   auto ec          = boost::system::error_code();
   auto token       = co_await this_coro::token();
   auto error_token = make_redirect_error_token(token, ec);
-  auto resolver    = tcp::resolver(stream.get_executor().context());
+
+  auto resolver = tcp::resolver(stream.get_executor().context());
 
   auto const results = co_await resolver.async_resolve(host, port, error_token);
   if (ec) {
-    co_return handler(ec, http::response<ResBody, ResFields>());
+    co_return handler(ec);
   }
 
   boost::ignore_unused(co_await asio::async_connect(
@@ -72,31 +71,30 @@ auto send_request_op(
     error_token));
 
   if (ec) {
-    co_return handler(ec, http::response<ResBody, ResFields>());
+    co_return handler(ec);
   }
 
   boost::ignore_unused(
     co_await http::async_write(stream, request, error_token));
   if (ec) {
-    co_return handler(ec, http::response<ResBody, ResFields>());
+    co_return handler(ec);
   }
 
   auto buffer   = beast::flat_buffer();
-  auto response = http::response<ResBody, ResFields>();
 
   boost::ignore_unused(
     co_await http::async_read(stream, buffer, response, error_token));
 
   if (ec) {
-    co_return handler(ec, http::response<ResBody, ResFields>());
+    co_return handler(ec);
   }
 
   stream.shutdown(tcp::socket::shutdown_send, ec);
   if (ec) {
-    co_return handler(ec, http::response<ResBody, ResFields>());
+    co_return handler(ec);
   }
 
-  handler({}, std::move(response));
+  handler({});
 }
 
 } // detail
@@ -112,30 +110,26 @@ auto send_request_op(
  * boost::asio::io_context::post.
  */
 template <
-  typename ResBody, typename ResFields,
   typename ReqBody, typename ReqFields,
+  typename ResBody, typename ResFields,
   typename CompletionToken
 >
 auto async_send_request(
-  boost::asio::io_context&                        io,
-  std::string const&                              host,
-  std::string const&                              port,
-  boost::beast::http::request<ReqBody, ReqFields> request,
-  CompletionToken&&                               token
+  boost::asio::io_context&                          io,
+  std::string_view const                            host,
+  std::string_view const                            port,
+  boost::beast::http::request<ReqBody, ReqFields>   request,
+  boost::beast::http::response<ResBody, ResFields>& response,
+  CompletionToken&&                                 token
 ) -> BOOST_ASIO_INITFN_RESULT_TYPE(
-    CompletionToken,
-    void(
-      boost::system::error_code,
-      boost::beast::http::response<ResBody, ResFields>))
+  CompletionToken, void(boost::system::error_code))
 {
   using boost::system::error_code;
 
   namespace asio = boost::asio;
   namespace http = boost::beast::http;
 
-  asio::async_completion<
-    CompletionToken, void(
-      error_code, http::response<ResBody, ResFields>)> init(token);
+  asio::async_completion<CompletionToken, void(error_code)> init(token);
 
   auto executor = asio::get_associated_executor(init.completion_handler, io);
 
@@ -144,15 +138,17 @@ auto async_send_request(
     [
       &io,
       host, port,
-      req     = std::move(request),
+      req = std::move(request),
+      &response,
       handler = std::move(init.completion_handler)
     ]
     (void) mutable -> awaitable<void>
     {
-      return detail::send_request_op<ResBody, ResFields>(
+      return detail::send_request_op(
         boost::asio::ip::tcp::socket(io),
         host, port,
         std::move(req),
+        response,
         std::move(handler));
     },
     detached);
