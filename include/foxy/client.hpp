@@ -112,7 +112,7 @@ auto send_request_op_with_allocator(
   std::string_view const                                      port,
   boost::beast::http::request_serializer<ReqBody, ReqFields>  serializer,
   boost::beast::http::response_parser<ResBody, ResAllocator>& parser,
-  ResAllocator const&                                         allocator,
+  boost::beast::basic_flat_buffer<ResAllocator>&              buffer,
   Handler                                                     handler
 ) -> awaitable<void>
 {
@@ -149,18 +149,9 @@ auto send_request_op_with_allocator(
     co_return handler(ec);
   }
 
-  std::cout << "addressof allocator is " << std::addressof(allocator) << "\n\n";
+  boost::ignore_unused(
+    co_await http::async_read(stream, buffer, parser, error_token));
 
-  beast::basic_flat_buffer<
-    boost::container::pmr::polymorphic_allocator<char>
-  > buffer(allocator);
-  // auto buffer = beast::flat_buffer();
-
-  std::cout << "address of pool is : " << buffer.get_allocator().resource() << '\n';
-
-  co_await http::async_read(stream, buffer, parser, error_token);
-
-  std::cout << "was there an error? " << std::boolalpha << static_cast<bool>(ec) << '\n';
   if (ec) {
     co_return handler(ec);
   }
@@ -243,7 +234,7 @@ auto async_send_request(
   std::string_view const                                      port,
   boost::beast::http::request_serializer<ReqBody, ReqFields>  serializer,
   boost::beast::http::response_parser<ResBody, ResAllocator>& parser,
-  ResAllocator&                                               allocator,
+  boost::beast::basic_flat_buffer<ResAllocator>&              buffer,
   CompletionToken&&                                           token
 ) -> BOOST_ASIO_INITFN_RESULT_TYPE(
   CompletionToken, void(boost::system::error_code))
@@ -263,7 +254,7 @@ auto async_send_request(
       &io,
       host, port,
       sr = std::move(serializer),
-      &parser, &allocator,
+      &parser, &buffer,
       handler = std::move(init.completion_handler)
     ]
     (void) mutable -> awaitable<void>
@@ -272,7 +263,7 @@ auto async_send_request(
         boost::asio::ip::tcp::socket(io),
         host, port,
         std::move(sr),
-        parser, allocator,
+        parser, buffer,
         std::move(handler));
     },
     detached);

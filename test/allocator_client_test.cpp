@@ -3,6 +3,8 @@
 
 #include <string>
 #include <iostream>
+
+#include <boost/core/ignore_unused.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/beast/http.hpp>
 
@@ -47,40 +49,24 @@ auto make_req_with_allocator(
   auto fields    = fields_type(allocator);
   auto header    = header_type(fields);
 
-  http::response_parser<
-    res_body_type, allocator_type
-  > parser(header);
+  boost::beast::basic_flat_buffer<allocator_type> buffer(allocator);
+
+  http::response_parser<res_body_type, allocator_type>
+    parser(
+      std::piecewise_construct,
+      std::make_tuple(),
+      std::make_tuple(allocator_type(std::addressof(pool))));
 
   auto serializer = http::request_serializer<http::empty_body>(request);
 
-  try {
-    std::cout << "addressof allocator is " << std::addressof(allocator) << "\n\n";
-    std::cout << "address of pool is : " << allocator.resource() << '\n';
-
-    co_await foxy::async_send_request(
+  co_await foxy::async_send_request(
       io, host, port,
-      std::move(serializer), parser, allocator,
+      std::move(serializer), parser, buffer,
       token);
 
-    CHECK(parser.is_done());
-    CHECK(parser.is_header_done());
-    CHECK(parser.chunked());
-    CHECK(parser.got_some());
-    CHECK(std::addressof(pool) == allocator.resource());
-
-    std::cout << "going to test the response now...\n\n";
-
-    auto response = parser.release();
-    CHECK(response.body().size() > 0);
-    CHECK(response.result_int() == 200);
-
-    std::cout << "done with the tests now...\n\n";
-
-  } catch (std::exception const& e) {
-    std::cout << e.what() << '\n';
-  }
-
-  std::cout << "going to leave the coro now..\n\n";
+  auto response = parser.release();
+  CHECK(response.body().size() > 0);
+  CHECK(response.result_int() == 200);
 }
 
 } // anonymous
