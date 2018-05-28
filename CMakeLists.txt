@@ -68,10 +68,11 @@ add_executable(
   foxy_tests
 
   ${CMAKE_CURRENT_SOURCE_DIR}/test/main.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/test/async_read_body_test.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/test/listener_test.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/test/route_test.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/test/client_test.cpp
+  # ${CMAKE_CURRENT_SOURCE_DIR}/test/async_read_body_test.cpp
+  # ${CMAKE_CURRENT_SOURCE_DIR}/test/listener_test.cpp
+  # ${CMAKE_CURRENT_SOURCE_DIR}/test/route_test.cpp
+  # ${CMAKE_CURRENT_SOURCE_DIR}/test/client_test.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/test/allocator_client_test.cpp
 )
 
 target_link_libraries(
