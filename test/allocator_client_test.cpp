@@ -41,20 +41,12 @@ auto make_req_with_allocator(
     std::char_traits<char>,
     allocator_type>;
 
-  using fields_type = http::basic_fields<allocator_type>;
-
-  using header_type = http::response_header<fields_type>;
-
-  auto allocator = allocator_type(std::addressof(pool));
-  auto fields    = fields_type(allocator);
-  auto header    = header_type(fields);
-
-  boost::beast::basic_flat_buffer<allocator_type> buffer(allocator);
+  boost::beast::basic_flat_buffer<allocator_type> buffer(allocator_type(std::addressof(pool)));
 
   http::response_parser<res_body_type, allocator_type>
     parser(
       std::piecewise_construct,
-      std::make_tuple(),
+      std::make_tuple(allocator_type(std::addressof(pool))),
       std::make_tuple(allocator_type(std::addressof(pool))));
 
   auto serializer = http::request_serializer<http::empty_body>(request);
