@@ -3,3 +3,6 @@ build*
 .vscode
 CMakeSettings.json
 .vs
+install/
+cmake/FoxyConfig.cmake
+cmake/FoxyConfigVersion.cmake

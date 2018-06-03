@@ -55,7 +55,8 @@ auto make_request(
     std::make_tuple(std::addressof(pool)),
     std::make_tuple(std::addressof(pool)));
 
-  auto buffer = beast::basic_flat_buffer<pmr::polymorphic_allocator<char>>();
+  auto buffer = beast::basic_flat_buffer<pmr::polymorphic_allocator<char>>(
+    std::addressof(pool));
 
   co_await foxy::proto::async_send_request(
     stream, host, port, request, parser, buffer);

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 
-project(foxy)
+project(foxy VERSION 1.0.0)
 
 find_path(CATCH_INCLUDE_DIR "catch.hpp")
 
@@ -14,20 +14,27 @@ find_package(
 )
 
 add_library(
-  foxy_core
+  libfoxy
 
   STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/log.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/session.cpp
 )
 
+set_target_properties(
+  libfoxy
+
+  PROPERTIES
+    OUTPUT_NAME "foxy"
+)
+
 if (MSVC)
   # Win10
-  target_compile_definitions(foxy_core PUBLIC _WIN32_WINNT=0x0A00)
+  target_compile_definitions(libfoxy PUBLIC _WIN32_WINNT=0x0A00)
 endif()
 
 target_compile_definitions(
-  foxy_core
+  libfoxy
 
   PUBLIC
   BOOST_COROUTINES_NO_DEPRECATION_WARNING=1
@@ -35,17 +42,18 @@ target_compile_definitions(
   _SILENCE_CXX17_ALLOCATOR_VOID_DEPRECATION_WARNING
 )
 
-target_compile_features(foxy_core PUBLIC cxx_std_17)
+target_compile_features(libfoxy PUBLIC cxx_std_17)
 
 target_include_directories(
-  foxy_core
+  libfoxy
 
   PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(
-  foxy_core
+  libfoxy
 
   PUBLIC
   Boost::boost
@@ -55,10 +63,10 @@ target_link_libraries(
 )
 
 if (MSVC)
-  target_compile_options(foxy_core PUBLIC "/await")
+  target_compile_options(libfoxy PUBLIC "/await")
 
   # keep this around, just in case
-  target_link_libraries(foxy_core PUBLIC Boost::disable_autolinking)
+  target_link_libraries(libfoxy PUBLIC Boost::disable_autolinking)
 endif()
 
 add_library(test_utils INTERFACE)
@@ -80,7 +88,7 @@ target_link_libraries(
   foxy_tests
 
   PRIVATE
-  foxy_core
+  libfoxy
   test_utils
   Catch
   Boost::context
@@ -91,3 +99,72 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake.modules/")
 enable_testing()
 include(ParseAndAddCatchTests)
 ParseAndAddCatchTests(foxy_tests)
+
+# Installation
+
+include(GNUInstallDirs)
+
+install(
+  TARGETS
+    libfoxy
+    foxy_tests
+
+  EXPORT
+    FoxyTargets
+
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(
+  EXPORT
+    FoxyTargets
+
+  FILE
+    FoxyTargets.cmake
+
+  NAMESPACE
+    Foxy::
+
+  DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}/cmake/foxy
+)
+
+install(
+  DIRECTORY
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+
+  DESTINATION
+    ${CMAKE_INSTALL_INCLUDEDIR}/foxy
+
+  FILES_MATCHING PATTERN
+    "*.h*"
+)
+
+#####################
+# ConfigVersion file
+##
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/FoxyConfigVersion.cmake
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY AnyNewerVersion
+)
+
+configure_package_config_file(
+    ${CMAKE_CURRENT_LIST_DIR}/cmake/FoxyConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/FoxyConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_CURRENT_LIST_DIR}/cmake
+)
+
+## Install all the helper files
+install(
+  FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/FoxyConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/FoxyConfigVersion.cmake
+
+  DESTINATION ${CMAKE_CURRENT_LIST_DIR}/cmake
+)
+
+add_library(Foxy::libfoxy ALIAS libfoxy)
