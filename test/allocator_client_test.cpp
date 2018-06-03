@@ -73,7 +73,5 @@ TEST_CASE("Our allocator-aware HTTP client")
       io, [&]() { return make_req_with_allocator(io); }, foxy::detached);
 
     io.run();
-
-    std::cout << "io context is now done working...\n\n";
   }
 }
