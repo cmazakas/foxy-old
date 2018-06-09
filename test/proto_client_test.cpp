@@ -6,9 +6,6 @@
 #include <boost/asio/io_context.hpp>
 
 #include <boost/beast/http.hpp>
-#include <boost/beast/core/flat_buffer.hpp>
-
-#include <boost/container/pmr/polymorphic_allocator.hpp>
 #include <boost/container/pmr/unsynchronized_pool_resource.hpp>
 
 #include "foxy/pmr.hpp"
@@ -33,10 +30,10 @@ auto make_request(
   asio::io_context&                  io,
   pmr::unsynchronized_pool_resource& pool) -> foxy::awaitable<void>
 {
-  auto stream = tcp::socket(io);
+  auto token = co_await foxy::this_coro::token();
 
-  auto const* host = "www.google.com";
-  auto const* port = "80";
+  auto const host = std::string("www.google.com");
+  auto const port = std::string("80");
 
   auto request = http::request<
     http::empty_body, foxy::pmr::basic_fields
@@ -53,11 +50,9 @@ auto make_request(
   auto buffer = foxy::pmr::basic_flat_buffer(std::addressof(pool));
 
   co_await foxy::proto::async_send_request(
-    stream, host, port, request, parser, buffer);
+    io, host, port, request, parser, buffer, token);
 
   auto msg = parser.release();
-
-  stream.shutdown(tcp::socket::shutdown_send);
 
   CHECK(msg.result_int() == 200);
   CHECK(msg.body().size() > 0);
