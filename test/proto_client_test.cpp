@@ -11,6 +11,7 @@
 #include <boost/container/pmr/polymorphic_allocator.hpp>
 #include <boost/container/pmr/unsynchronized_pool_resource.hpp>
 
+#include "foxy/pmr.hpp"
 #include "foxy/coroutine.hpp"
 #include "foxy/detail/client.hpp"
 
@@ -38,30 +39,25 @@ auto make_request(
   auto const* port = "80";
 
   auto request = http::request<
-    http::empty_body, http::basic_fields<pmr::polymorphic_allocator<char>>
+    http::empty_body, foxy::pmr::basic_fields
   >(
     http::verb::get, "/", 11,
     http::empty_body::value_type(),
     std::addressof(pool));
 
-  http::response_parser<
-    http::basic_string_body<
-      char, std::char_traits<char>, pmr::polymorphic_allocator<char>
-    >,
-    pmr::polymorphic_allocator<char>
-  >
-  parser(
+  foxy::pmr::response_parser<foxy::pmr::basic_string_body<char>> parser(
     std::piecewise_construct,
     std::make_tuple(std::addressof(pool)),
     std::make_tuple(std::addressof(pool)));
 
-  auto buffer = beast::basic_flat_buffer<pmr::polymorphic_allocator<char>>(
-    std::addressof(pool));
+  auto buffer = foxy::pmr::basic_flat_buffer(std::addressof(pool));
 
   co_await foxy::proto::async_send_request(
     stream, host, port, request, parser, buffer);
 
   auto msg = parser.release();
+
+  stream.shutdown(tcp::socket::shutdown_send);
 
   CHECK(msg.result_int() == 200);
   CHECK(msg.body().size() > 0);

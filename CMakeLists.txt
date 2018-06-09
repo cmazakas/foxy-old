@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 
-project(foxy VERSION 1.0.0)
+project(foxy VERSION 1.0.0 LANGUAGES CXX)
 
 find_path(CATCH_INCLUDE_DIR "catch.hpp")
 
@@ -155,7 +155,7 @@ write_basic_package_version_file(
 configure_package_config_file(
     ${CMAKE_CURRENT_LIST_DIR}/cmake/FoxyConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/FoxyConfig.cmake
-    INSTALL_DESTINATION ${CMAKE_CURRENT_LIST_DIR}/cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/foxy
 )
 
 ## Install all the helper files
@@ -164,7 +164,7 @@ install(
     ${CMAKE_CURRENT_BINARY_DIR}/FoxyConfig.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/FoxyConfigVersion.cmake
 
-  DESTINATION ${CMAKE_CURRENT_LIST_DIR}/cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/foxy
 )
 
 add_library(Foxy::libfoxy ALIAS libfoxy)
